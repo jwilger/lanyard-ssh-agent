@@ -16,6 +16,7 @@ Select the first viable owner of a signing key, retry safely, and promote succes
 ## Acceptance criteria
 
 - [ ] Forwarded or discovered candidates are initially preferred over static fallback
+- [ ] Successful signing promotes that backend without identity-list side effects
 
 ## Subtasks
 
