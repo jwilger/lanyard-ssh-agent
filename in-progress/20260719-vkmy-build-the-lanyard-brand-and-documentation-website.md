@@ -21,7 +21,7 @@ Create a distinctive Astro GitHub Pages site and complete user/developer documen
 - [x] The site follows the industrial field-manual and transit-map art direction without card-grid clichés
 - [x] Original Lanyard logo and supporting imagery are included
 - [x] All planned user, security, architecture, contribution, and release docs are present
-- [ ] Accessibility and browser smoke tests pass
+- [x] Accessibility and browser smoke tests pass
 
 ## Subtasks
 
