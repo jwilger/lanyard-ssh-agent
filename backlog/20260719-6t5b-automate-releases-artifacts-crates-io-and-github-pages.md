@@ -16,6 +16,7 @@ Automate versioning, signed release artifacts, crates.io publication, and Pages 
 ## Acceptance criteria
 
 - [ ] release-plz and the pinned reusable workflow drive releases from main
+- [ ] cargo-dist publishes Linux x86_64 and aarch64 artifacts with checksums
 
 ## Subtasks
 
