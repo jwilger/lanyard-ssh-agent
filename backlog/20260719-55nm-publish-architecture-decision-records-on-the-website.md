@@ -17,6 +17,8 @@ Use the canonical Markdown files under docs/adr as the source of truth. The site
 
 ## Acceptance criteria
 
+- [ ] Every canonical docs/adr Markdown record is published at a stable website URL
+
 ## Subtasks
 
 ## Notes / Log
