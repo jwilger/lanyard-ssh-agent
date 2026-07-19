@@ -9,16 +9,15 @@ import RouteDiagram from "../../components/RouteDiagram.astro";
   description="Identity discovery is broad; signing is key-specific, ordered, bounded, and adaptive."
 >
   <div class="prose">
-    <div class="warning note">
-      <strong>v0.1 DESIGN CONTRACT</strong>Main currently proxies one explicit
-      upstream. Discovery, registration, adaptive ordering, and failover
-      described below are being implemented before the first release.
-    </div>
     <RouteDiagram />
     <h2>Candidate order</h2><ol>
       <li>
-        The agent that most recently completed a signature successfully.
-      </li><li>Untried forwarded and discovered sockets, newest first.</li><li>
+        The agent that most recently completed a signature for the requested
+        key.
+      </li><li>
+        Explicit registrations, newest first, followed by discovered sockets in
+        stable path order.
+      </li><li>
         Explicitly configured static agents, including local 1Password.
       </li>
     </ol>
@@ -32,9 +31,11 @@ import RouteDiagram from "../../components/RouteDiagram.astro";
       healthy agents from contributing within the configured request budget.
     </p>
     <h2>Signature requests</h2><p>
-      Only agents that advertised the requested public key are tried. A timeout
-      or ordinary agent failure advances to the next matching candidate. Success
-      promotes that candidate. Exhaustion returns an SSH agent failure response.
+      Current candidates are tried in order; Lanyard does not cache
+      identity-list results because agent ownership and availability can change.
+      A timeout or ordinary agent failure advances to the next candidate.
+      Success promotes that candidate for the exact requested public-key blob.
+      Exhaustion returns an SSH agent failure response.
     </p>
     <h2>OpenSSH extensions</h2><p>
       <code>query</code> and <code>session-bind@openssh.com</code> are understood.

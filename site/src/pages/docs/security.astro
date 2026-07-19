@@ -27,11 +27,12 @@ import DocLayout from "../../layouts/DocLayout.astro";
       bounded.
     </p>
     <h2>Availability tradeoff</h2><p>
-      After a candidate advertises a key, a generic signing failure causes
-      Lanyard to try the next matching agent. This is intentional: some agents
-      use the same failure response for “not available now” and explicit denial.
-      If all candidates fail, Lanyard returns failure; it never fabricates a
-      signature.
+      A generic signing failure causes Lanyard to try the next current
+      candidate. This is intentional: identity ownership can change, and some
+      agents use the same failure response for “not available now” and explicit
+      denial. Lanyard does not use prior identity listings as an authorization
+      decision. If all candidates fail, it returns failure; it never fabricates
+      a signature.
     </p>
     <div class="warning note">
       <strong>FORWARDING REMAINS POWERFUL</strong>An SSH server receiving your

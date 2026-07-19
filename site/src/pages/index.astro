@@ -12,7 +12,8 @@ const base = import.meta.env.BASE_URL;
       <p class="hero-lede">
         Keep Git signing and SSH authentication working as you move between a
         local 1Password agent and forwarded laptop sessions—even inside the same
-        long-running Zellij session.
+        long-running terminal-multiplexer session, whether you use Zellij, tmux,
+        or another multiplexer.
       </p>
       <div class="hero-actions">
         <a class="button" href={`${base}docs/quick-start/`}>INSTALL LANYARD →</a
@@ -45,8 +46,10 @@ const base = import.meta.env.BASE_URL;
         </p>
       </section>
       <section>
-        <span>02 / ATTACH</span><h3>Join an existing Zellij session.</h3><p>
-          Its environment still remembers whichever socket started it.
+        <span>02 / ATTACH</span><h3>Join an existing multiplexer session.</h3><p
+        >
+          Zellij, tmux, or another multiplexer still remembers whichever socket
+          started it.
         </p>
       </section>
       <section>
@@ -74,14 +77,14 @@ const base = import.meta.env.BASE_URL;
       </div>
       <div>
         <dt>02</dt><dd>
-          Identities are combined and deduplicated. A signing request is offered
-          only to agents that advertised its key.
+          Identities are combined and deduplicated. Signing tries current agents
+          in policy order without relying on stale identity-list results.
         </dd>
       </div>
       <div>
         <dt>03</dt><dd>
-          A successful signer moves to the front of the line. Timeouts and
-          failures fall through to the next candidate.
+          A successful signer moves to the front of the line for that key.
+          Timeouts and failures fall through to the next candidate.
         </dd>
       </div>
       <div>

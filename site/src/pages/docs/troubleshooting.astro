@@ -16,17 +16,20 @@ import DocLayout from "../../layouts/DocLayout.astro";
       check whether the local 1Password socket exists or register the incoming
       remote socket explicitly.
     </p>
-    <h2>Zellij sees an old socket</h2><p>
+    <h2>Your terminal multiplexer sees an old socket</h2><p>
       This is the problem Lanyard removes: update the long-running session once
-      so <code>SSH_AUTH_SOCK</code> points at the stable Lanyard socket. Future forwarded
-      agents change behind that address.
+      in Zellij, tmux, or your multiplexer of choice so <code
+        >SSH_AUTH_SOCK</code
+      >
+      points at the stable Lanyard socket. Future forwarded agents change behind that
+      address.
     </p>
     <h2>Git says “agent refused operation”</h2><ul>
       <li>
         Confirm the configured <code>user.signingkey</code> matches an identity from
         <code>ssh-add -L</code>.
       </li><li>Unlock or approve the relevant upstream agent.</li><li>
-        Use <code>status --json</code> to see which candidates advertised the key.
+        Use <code>status --json</code> to inspect current candidate order and reachability.
       </li><li>Check whether a 30-second approval timeout elapsed.</li>
     </ul>
     <h2>Forwarded agent disappeared</h2><p>

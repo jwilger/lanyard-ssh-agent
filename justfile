@@ -14,10 +14,13 @@ lint:
 test:
     cargo test --all-features
 
+e2e:
+    cargo test --all-features --test e2e_openssh -- --ignored
+
 deny:
     cargo deny check
 
 mutants:
     cargo mutants --all-features --in-place
 
-check: fmt lint test deny mutants
+check: fmt lint test e2e deny mutants

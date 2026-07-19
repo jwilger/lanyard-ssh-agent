@@ -51,8 +51,10 @@
             actionlint
             cargo-deny
             cargo-mutants
+            git
             just
             nixfmt-tree
+            openssh
             toolchain
           ];
           shellHook = ''

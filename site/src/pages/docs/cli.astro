@@ -8,11 +8,6 @@ import DocLayout from "../../layouts/DocLayout.astro";
   description="A small command surface for serving, registering, inspecting, and scripting the switchboard."
 >
   <div class="prose">
-    <div class="warning note">
-      <strong>PRE-RELEASE CONTRACT</strong><code>serve --upstream PATH</code> is available
-      today. Control commands and configuration below describe the v0.1 interface
-      being implemented.
-    </div>
     <h2>Commands</h2>
     <table class="spec-table">
       <thead><tr><th>Command</th><th>Effect</th><th>Status</th></tr></thead
@@ -27,40 +22,32 @@ import DocLayout from "../../layouts/DocLayout.astro";
         <tr
           ><td><code>register PATH</code></td><td
             >Add or refresh an upstream agent socket.</td
-          ><td>Planned v0.1</td></tr
+          ><td>Available</td></tr
         >
         <tr
           ><td><code>unregister PATH</code></td><td
             >Remove an explicit registration.</td
-          ><td>Planned v0.1</td></tr
+          ><td>Available</td></tr
         >
         <tr
           ><td><code>status [--json]</code></td><td
-            >Report candidates, reachability, identity counts, and routing
-            priority.</td
-          ><td>Planned v0.1</td></tr
+            >Report candidates, reachability, source, and routing priority.</td
+          ><td>Available</td></tr
         >
         <tr
           ><td><code>socket [--control]</code></td><td
             >Print the stable agent or control socket path for shell scripts.</td
-          ><td>Planned v0.1</td></tr
+          ><td>Available</td></tr
         >
       </tbody>
     </table>
-    <h2>Configuration file <small>(planned for v0.1)</small></h2><p>
-      By default Lanyard reads <code
-        >$XDG_CONFIG_HOME/lanyard-ssh-agent/config.toml</code
-      >.
+    <h2>Configuration</h2><p>
+      Start the daemon with a durable local fallback using <code
+        >serve --upstream PATH</code
+      >. Runtime registrations are intentionally ephemeral and can be managed
+      through the control commands above. The agent and control sockets live in
+      the private Lanyard directory beneath <code>$XDG_RUNTIME_DIR</code>.
     </p>
-    <pre><code># A durable local fallback.
-static_agents = ["~/.1password/agent.sock"]
-
-# Conservative protocol budgets.
-connect_timeout_ms = 500
-identities_timeout_ms = 2000
-sign_timeout_ms = 30000
-max_candidates = 32
-max_message_bytes = 262144</code></pre>
     <div class="note">
       <strong>SCRIPTING CONTRACT</strong>Use <code>status --json</code> for automation.
       Human output may gain explanatory fields; JSON field meanings remain versioned.
