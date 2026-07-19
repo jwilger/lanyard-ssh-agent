@@ -16,6 +16,7 @@ Discover forwarded OpenSSH sockets and support explicit runtime registration whi
 ## Acceptance criteria
 
 - [ ] Forwarded agents can be auto-discovered and explicitly registered or unregistered
+- [ ] The static 1Password agent remains available as fallback
 
 ## Subtasks
 
