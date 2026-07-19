@@ -20,7 +20,7 @@ Ship a Nix package, Home Manager module, and systemd user service with safe shel
 
 - [x] The flake exposes packages, apps, checks, and a Home Manager module
 - [x] The user service owns the stable runtime and control sockets
-- [ ] Shell integration registers incoming forwarded sockets before exporting Lanyard's socket
+- [x] Shell integration registers incoming forwarded sockets before exporting Lanyard's socket
 - [ ] Linux behavior is added without regressing Darwin configuration
 
 ## Subtasks
