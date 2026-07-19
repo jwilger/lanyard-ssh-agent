@@ -8,9 +8,12 @@ use std::os::unix::fs::{FileTypeExt as _, PermissionsExt as _};
 use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
+use lanyard_ssh_agent::backend::Source;
+use lanyard_ssh_agent::control::{CandidateStatus, Request, Response, serve as serve_control};
 use lanyard_ssh_agent::paths::{agent_socket, control_socket};
 use lanyard_ssh_agent::proxy::{Config, serve};
 use tokio::fs::{create_dir_all, remove_file, set_permissions, symlink_metadata};
+use tokio::io::{AsyncBufReadExt as _, AsyncWriteExt as _, BufReader};
 use tokio::net::{UnixListener, UnixStream};
 use tokio::signal::ctrl_c;
 use tokio::signal::unix::{SignalKind, signal};
@@ -59,12 +62,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
             upstream,
             socket: requested_socket,
         } => {
-            let listening_socket = requested_socket.map_or_else(default_agent_socket, Ok)?;
-            run_proxy(&listening_socket, upstream).await?;
+            let runtime = runtime_directory()?;
+            let listening_socket = requested_socket.unwrap_or_else(|| agent_socket(&runtime));
+            run_proxy(&listening_socket, &control_socket(&runtime), upstream).await?;
         }
-        Command::Register { socket } => println!("register {}", socket.display()),
-        Command::Unregister { socket } => println!("unregister {}", socket.display()),
-        Command::Status { json } => println!("status json={json}"),
+        Command::Register { socket } => {
+            expect_update(send_control(Request::Register { path: socket }).await?)?;
+        }
+        Command::Unregister { socket } => {
+            expect_update(send_control(Request::Unregister { path: socket }).await?)?;
+        }
+        Command::Status { json } => print_status(send_control(Request::Status).await?, json)?,
         Command::Socket { control } => {
             let runtime_directory = runtime_directory()?;
             let socket = if control {
@@ -78,21 +86,109 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-async fn run_proxy(socket: &Path, upstream: PathBuf) -> io::Result<()> {
+async fn run_proxy(socket: &Path, control_path: &Path, upstream: PathBuf) -> io::Result<()> {
     prepare_socket_parent(socket).await?;
+    prepare_socket_parent(control_path).await?;
     let _instance_lock = acquire_instance_lock(socket)?;
     let listener = bind_owned_socket(socket).await?;
-    set_permissions(socket, Permissions::from_mode(0o600)).await?;
+    let control_listener = match bind_owned_socket(control_path).await {
+        Ok(bound_control_listener) => bound_control_listener,
+        Err(error) => {
+            let _cleanup_result = remove_file(socket).await;
+            return Err(error);
+        }
+    };
+    if let Err(error) = set_permissions(socket, Permissions::from_mode(0o600)).await {
+        cleanup_startup_sockets(socket, control_path).await;
+        return Err(error);
+    }
+    if let Err(error) = set_permissions(control_path, Permissions::from_mode(0o600)).await {
+        cleanup_startup_sockets(socket, control_path).await;
+        return Err(error);
+    }
+
+    let config = Config::new(upstream);
+    let registry = config.registry();
 
     let result = tokio::select! {
-        proxy_result = serve(listener, Config::new(upstream)) => proxy_result,
+        proxy_result = serve(listener, config) => proxy_result,
+        control_result = serve_control(control_listener, registry, vec![PathBuf::from("/tmp")]) => control_result,
         signal_result = shutdown_signal() => signal_result,
     };
     let cleanup_result = remove_file(socket).await;
-    match (result, cleanup_result) {
-        (Err(error), _) => Err(error),
-        (Ok(()), Err(error)) if error.kind() != ErrorKind::NotFound => Err(error),
+    let control_cleanup_result = remove_file(control_path).await;
+    match (result, cleanup_result, control_cleanup_result) {
+        (Err(error), _, _) => Err(error),
+        (Ok(()), Err(error), _) | (Ok(()), _, Err(error))
+            if error.kind() != ErrorKind::NotFound =>
+        {
+            Err(error)
+        }
         _ => Ok(()),
+    }
+}
+
+async fn cleanup_startup_sockets(agent: &Path, control: &Path) {
+    let _agent_cleanup = remove_file(agent).await;
+    let _control_cleanup = remove_file(control).await;
+}
+
+async fn send_control(request: Request) -> io::Result<Response> {
+    let runtime = runtime_directory()?;
+    let mut stream = UnixStream::connect(control_socket(&runtime)).await?;
+    let mut request_bytes = serde_json::to_vec(&request).map_err(io::Error::other)?;
+    request_bytes.push(b'\n');
+    stream.write_all(&request_bytes).await?;
+    let mut response = String::new();
+    BufReader::new(stream).read_line(&mut response).await?;
+    serde_json::from_str(&response).map_err(io::Error::other)
+}
+
+fn expect_update(response: Response) -> io::Result<()> {
+    match response {
+        Response::Updated { .. } => Ok(()),
+        Response::Error { message } => Err(io::Error::other(message)),
+        Response::Status { .. } => Err(io::Error::new(
+            ErrorKind::InvalidData,
+            "daemon returned status for a mutation",
+        )),
+    }
+}
+
+fn print_status(response: Response, json: bool) -> io::Result<()> {
+    match response {
+        status_response @ Response::Status { .. } if json => {
+            println!(
+                "{}",
+                serde_json::to_string(&status_response).map_err(io::Error::other)?
+            );
+            Ok(())
+        }
+        Response::Status { candidates } => {
+            for CandidateStatus {
+                path,
+                source,
+                reachable,
+            } in candidates
+            {
+                let source_name = match source {
+                    Source::Registered => "registered",
+                    Source::Discovered => "discovered",
+                    Source::Fallback => "fallback",
+                };
+                println!(
+                    "{source_name}\t{}\t{}",
+                    if reachable { "ready" } else { "down" },
+                    path.display()
+                );
+            }
+            Ok(())
+        }
+        Response::Error { message } => Err(io::Error::other(message)),
+        Response::Updated { .. } => Err(io::Error::new(
+            ErrorKind::InvalidData,
+            "daemon returned mutation result for status",
+        )),
     }
 }
 
@@ -161,10 +257,6 @@ async fn remove_stale_socket(socket: &Path) -> io::Result<()> {
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error),
     }
-}
-
-fn default_agent_socket() -> io::Result<PathBuf> {
-    runtime_directory().map(|runtime| agent_socket(&runtime))
 }
 
 fn runtime_directory() -> io::Result<PathBuf> {

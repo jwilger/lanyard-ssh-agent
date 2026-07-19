@@ -20,7 +20,8 @@ const QUERY_EXTENSION: &[u8] = &[27, 0, 0, 0, 5, b'q', b'u', b'e', b'r', b'y'];
 const EXTENSION_RESPONSE: &[u8] = &[6];
 const SESSION_BIND_EXTENSION: &[u8] = &[
     27, 0, 0, 0, 24, b's', b'e', b's', b's', b'i', b'o', b'n', b'-', b'b', b'i', b'n', b'd', b'@',
-    b'o', b'p', b'e', b'n', b's', b's', b'h', b'.', b'c', b'o', b'm',
+    b'o', b'p', b'e', b'n', b's', b's', b'h', b'.', b'c', b'o', b'm', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0,
 ];
 const UNKNOWN_EXTENSION: &[u8] = &[27, 0, 0, 0, 7, b'u', b'n', b'k', b'n', b'o', b'w', b'n'];
 
@@ -33,15 +34,18 @@ async fn proxies_read_only_agent_operations_and_rejects_mutation() -> Result<(),
     let lanyard_listener = UnixListener::bind(&lanyard_path)?;
 
     let fake_agent = tokio::spawn(async move {
-        let (mut stream, _) = upstream_listener.accept().await?;
-        assert_eq!(read_frame(&mut stream).await?, REQUEST_IDENTITIES);
-        write_frame(&mut stream, IDENTITIES_ANSWER).await?;
-        assert_eq!(read_frame(&mut stream).await?, SIGN_REQUEST);
-        write_frame(&mut stream, SIGN_RESPONSE).await?;
-        assert_eq!(read_frame(&mut stream).await?, QUERY_EXTENSION);
-        write_frame(&mut stream, EXTENSION_RESPONSE).await?;
-        assert_eq!(read_frame(&mut stream).await?, SESSION_BIND_EXTENSION);
-        write_frame(&mut stream, EXTENSION_RESPONSE).await?;
+        let (mut identities, _) = upstream_listener.accept().await?;
+        assert_eq!(read_frame(&mut identities).await?, REQUEST_IDENTITIES);
+        write_frame(&mut identities, IDENTITIES_ANSWER).await?;
+        for (request, response) in [
+            (SIGN_REQUEST, SIGN_RESPONSE),
+            (QUERY_EXTENSION, EXTENSION_RESPONSE),
+            (SESSION_BIND_EXTENSION, EXTENSION_RESPONSE),
+        ] {
+            let (mut stream, _) = upstream_listener.accept().await?;
+            assert_eq!(read_frame(&mut stream).await?, request);
+            write_frame(&mut stream, response).await?;
+        }
         Ok::<(), io::Error>(())
     });
 

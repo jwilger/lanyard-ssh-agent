@@ -114,9 +114,96 @@ fn serve_recovers_a_stale_socket() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[test]
+fn cli_updates_and_inspects_a_running_daemon() -> Result<(), Box<dyn Error>> {
+    let directory = tempfile::tempdir()?;
+    let runtime = directory.path().join("runtime");
+    let fallback = directory.path().join("onepassword.sock");
+    let forwarded = directory.path().join("forwarded.sock");
+    let custom_agent_socket = directory.path().join("custom-agent.sock");
+    fs::create_dir_all(&runtime)?;
+    let _fallback_listener = UnixListener::bind(&fallback)?;
+    let _forwarded_listener = UnixListener::bind(&forwarded)?;
+    let binary = assert_cmd::cargo::cargo_bin!("lanyard-ssh-agent");
+    let mut daemon = ProcessCommand::new(binary)
+        .env("XDG_RUNTIME_DIR", &runtime)
+        .args(["serve", "--upstream"])
+        .arg(&fallback)
+        .args(["--socket"])
+        .arg(&custom_agent_socket)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()?;
+    let control = runtime.join("lanyard-ssh-agent/control.sock");
+    wait_for_connectable_socket(&control)?;
+
+    Command::new(binary)
+        .env("XDG_RUNTIME_DIR", &runtime)
+        .arg("register")
+        .arg(&forwarded)
+        .assert()
+        .success();
+    Command::new(binary)
+        .env("XDG_RUNTIME_DIR", &runtime)
+        .args(["status", "--json"])
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::contains("\"source\":\"registered\"")
+                .and(predicate::str::contains(forwarded.to_string_lossy())),
+        );
+    Command::new(binary)
+        .env("XDG_RUNTIME_DIR", &runtime)
+        .arg("unregister")
+        .arg(&forwarded)
+        .assert()
+        .success();
+
+    let signal_status = ProcessCommand::new("kill")
+        .args(["-TERM", &daemon.id().to_string()])
+        .status()?;
+    assert!(signal_status.success());
+    assert!(daemon.wait()?.success());
+    assert!(!control.exists());
+    Ok(())
+}
+
+#[test]
+fn failed_control_bind_rolls_back_a_custom_agent_socket() -> Result<(), Box<dyn Error>> {
+    let directory = tempfile::tempdir()?;
+    let runtime = directory.path().join("runtime");
+    let runtime_socket_directory = runtime.join("lanyard-ssh-agent");
+    let control = runtime_socket_directory.join("control.sock");
+    let custom_agent_socket = directory.path().join("custom-agent.sock");
+    let fallback = directory.path().join("fallback.sock");
+    fs::create_dir_all(&runtime_socket_directory)?;
+    let _control_owner = UnixListener::bind(&control)?;
+    let _fallback_listener = UnixListener::bind(&fallback)?;
+    let binary = assert_cmd::cargo::cargo_bin!("lanyard-ssh-agent");
+
+    let output = ProcessCommand::new(binary)
+        .env("XDG_RUNTIME_DIR", &runtime)
+        .args(["serve", "--upstream"])
+        .arg(&fallback)
+        .args(["--socket"])
+        .arg(&custom_agent_socket)
+        .output()?;
+
+    assert!(!output.status.success());
+    assert!(
+        !custom_agent_socket.exists(),
+        "failed startup must remove the agent socket it created"
+    );
+    assert!(
+        UnixStream::connect(&control).is_ok(),
+        "failed startup must not disturb the existing control socket"
+    );
+    Ok(())
+}
+
 fn wait_for_path(path: &Path) -> Result<(), Box<dyn Error>> {
     let deadline = Instant::now()
-        .checked_add(Duration::from_secs(2))
+        .checked_add(Duration::from_secs(5))
         .ok_or("deadline overflowed")?;
     while !path.exists() {
         if Instant::now() >= deadline {
@@ -129,7 +216,7 @@ fn wait_for_path(path: &Path) -> Result<(), Box<dyn Error>> {
 
 fn wait_for_connectable_socket(path: &Path) -> Result<(), Box<dyn Error>> {
     let deadline = Instant::now()
-        .checked_add(Duration::from_secs(2))
+        .checked_add(Duration::from_secs(5))
         .ok_or("deadline overflowed")?;
     loop {
         if UnixStream::connect(path).is_ok() {

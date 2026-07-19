@@ -247,6 +247,7 @@ dependencies = [
  "clap",
  "mutants",
  "predicates",
+ "rustix",
  "serde",
  "serde_json",
  "serde_yaml",
