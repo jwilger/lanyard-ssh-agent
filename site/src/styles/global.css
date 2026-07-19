@@ -261,7 +261,9 @@ h3 {
   z-index: -1;
 }
 .hero-art img {
+  display: block;
   width: 118%;
+  height: auto;
   max-width: none;
   transform: translateX(-5%) rotate(-1deg);
   filter: drop-shadow(10px 12px 0 rgb(23 23 20 / 14%));
