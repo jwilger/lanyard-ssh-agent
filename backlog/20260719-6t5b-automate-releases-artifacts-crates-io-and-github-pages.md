@@ -1,6 +1,6 @@
 ---
 title: Automate releases, artifacts, crates.io, and GitHub Pages
-blocked_by: [20260719-bebi-verify-end-to-end-ssh-authentication-and-git-signing]
+blocked_by: [20260719-bebi-verify-end-to-end-ssh-authentication-and-git-signing, 20260719-vkmy-build-the-lanyard-brand-and-documentation-website]
 blocks: []
 tags: []
 pr_mr_url: 

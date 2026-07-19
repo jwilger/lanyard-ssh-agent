@@ -1,7 +1,7 @@
 ---
 title: Build the Lanyard brand and documentation website
 blocked_by: [20260719-zetx-route-signatures-adaptively-with-failover]
-blocks: []
+blocks: [20260719-6t5b-automate-releases-artifacts-crates-io-and-github-pages]
 tags: []
 pr_mr_url: 
 pr_mr_status: 
