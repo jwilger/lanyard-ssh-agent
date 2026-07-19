@@ -5,9 +5,6 @@ blocks: [20260719-zetx-route-signatures-adaptively-with-failover]
 tags: []
 pr_mr_url: 
 pr_mr_status: 
-claim:
-  host: unknown
-  session: unknown
 ---
 
 ## Summary
