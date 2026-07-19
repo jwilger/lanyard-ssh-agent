@@ -19,6 +19,7 @@ Discovered while building the Home Manager module check in an optimized Nix buil
 
 - [ ] SIGTERM handling is installed before agent.sock or control.sock becomes externally connectable
 - [ ] An immediate SIGTERM after socket readiness exits successfully and removes owned sockets
+- [ ] The optimized Nix package test suite passes reliably
 
 ## Subtasks
 
