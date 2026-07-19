@@ -10,6 +10,15 @@ let
   escapeSystemdExecArg =
     argument: lib.replaceStrings [ "%" "$" ] [ "%%" "$$" ] (builtins.toJSON (toString argument));
   escapeSystemdExecArgs = lib.concatMapStringsSep " " escapeSystemdExecArg;
+  stableSocket = "$XDG_RUNTIME_DIR/lanyard-ssh-agent/agent.sock";
+  bashIntegration = ''
+    _lanyard_incoming_agent="''${SSH_AUTH_SOCK-}"
+    if [ -n "$_lanyard_incoming_agent" ] && [ -n "''${SSH_CONNECTION-}" ] && [ "$_lanyard_incoming_agent" != "${stableSocket}" ]; then
+      "${cfg.package}/bin/lanyard-ssh-agent" register "$_lanyard_incoming_agent" >/dev/null 2>&1 || true
+    fi
+    export SSH_AUTH_SOCK="${stableSocket}"
+    unset _lanyard_incoming_agent
+  '';
 in
 {
   options.programs.lanyard-ssh-agent = {
@@ -33,6 +42,8 @@ in
 
   config = lib.mkIf cfg.enable {
     home.packages = [ cfg.package ];
+
+    programs.bash.profileExtra = lib.mkIf pkgs.stdenv.isLinux (lib.mkOrder 900 bashIntegration);
 
     systemd.user.services.lanyard-ssh-agent = lib.mkIf pkgs.stdenv.isLinux {
       Install.WantedBy = [ "default.target" ];

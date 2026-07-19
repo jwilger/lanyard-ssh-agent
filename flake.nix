@@ -49,7 +49,10 @@
             cargoLock.lockFile = ./Cargo.lock;
           };
           testPackage = pkgs.writeShellScriptBin "lanyard-ssh-agent" ''
-            exit 0
+            printf '%s|%s\n' "$SSH_AUTH_SOCK" "$*" >> "$LANYARD_TEST_LOG"
+            if [ -n "''${LANYARD_TEST_FAIL-}" ]; then
+              exit 1
+            fi
           '';
           homeConfiguration = home-manager.lib.homeManagerConfiguration {
             inherit pkgs;
@@ -66,6 +69,7 @@
                   package = testPackage;
                   upstream = ''/home/lanyard-test/Agent 100% "socket"'';
                 };
+                programs.bash.enable = true;
               }
             ];
           };
@@ -106,6 +110,28 @@
                 grep -F -- '"serve" "--upstream" "/home/lanyard-test/Agent 100%% \"socket\""' ${service}
                 grep -F -- "Restart=on-failure" ${service}
                 grep -F -- "WantedBy=default.target" ${service}
+                touch "$out"
+              '';
+            home-manager-shell-integration =
+              let
+                profile = "${homeConfiguration.config.home-files}/.profile";
+              in
+              pkgs.runCommand "lanyard-home-manager-shell-integration" { } ''
+                export HOME="$TMPDIR/home"
+                export LANYARD_TEST_LOG="$TMPDIR/lanyard.log"
+                export SSH_AUTH_SOCK="$TMPDIR/forwarded-agent.sock"
+                export SSH_CONNECTION="client.example 22 server.example 2222"
+                export XDG_RUNTIME_DIR="$TMPDIR/runtime"
+
+                source ${profile}
+
+                test "$(cat "$LANYARD_TEST_LOG")" = "$TMPDIR/forwarded-agent.sock|register $TMPDIR/forwarded-agent.sock"
+                test "$SSH_AUTH_SOCK" = "$TMPDIR/runtime/lanyard-ssh-agent/agent.sock"
+
+                export LANYARD_TEST_FAIL=1
+                export SSH_AUTH_SOCK="$TMPDIR/second-forwarded-agent.sock"
+                source ${profile}
+                test "$SSH_AUTH_SOCK" = "$TMPDIR/runtime/lanyard-ssh-agent/agent.sock"
                 touch "$out"
               '';
           };
