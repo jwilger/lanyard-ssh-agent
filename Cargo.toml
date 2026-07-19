@@ -7,8 +7,32 @@ description = "A resilient switching proxy for SSH agents"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/jwilger/lanyard-ssh-agent"
 homepage = "https://jwilger.github.io/lanyard-ssh-agent/"
+documentation = "https://docs.rs/lanyard-ssh-agent"
+readme = "README.md"
+include = ["/src/**", "/CHANGELOG.md", "/README.md", "/LICENSE-*"]
 keywords = ["ssh", "agent", "git", "signing", "proxy"]
 categories = ["command-line-utilities", "authentication"]
+
+# Config for 'dist'
+[workspace.metadata.dist]
+# The preferred dist version to use in CI (Cargo.toml SemVer syntax)
+cargo-dist-version = "0.32.0"
+# CI backends to support
+ci = "github"
+# The installers to generate for each app
+installers = []
+# Target platforms to build apps for (Rust target-triple syntax)
+targets = ["aarch64-unknown-linux-gnu", "x86_64-unknown-linux-gnu"]
+# Checksums to generate for each App
+checksum = "sha256"
+# The generated workflow has intentional shellcheck hardening beyond dist's
+# template; keep it instead of silently overwriting those changes.
+allow-dirty = ["ci"]
+
+[workspace.metadata.dist.github-action-commits]
+"actions/checkout" = "df4cb1c069e1874edd31b4311f1884172cec0e10"
+"actions/download-artifact" = "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
+"actions/upload-artifact" = "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
@@ -21,7 +45,9 @@ tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi
 assert_cmd = "2"
 mutants = "0.0.4"
 predicates = "3"
+serde_yaml = "0.9"
 tempfile = "3.27.0"
+toml = "0.9"
 
 [lints.rust]
 unsafe_code = "forbid"
@@ -53,3 +79,8 @@ expect_used = "deny"
 panic = "deny"
 todo = "deny"
 unimplemented = "deny"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"

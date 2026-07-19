@@ -1,0 +1,19 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release:
+    # Fail closed until the shared workflow pins every nested action. Its
+    # current revision uses mutable tags in jobs that handle release secrets.
+    if: ${{ vars.RELEASE_WORKFLOW_NESTED_ACTIONS_PINNED == 'true' }}
+    uses: jwilger/gha-workflows/.github/workflows/rust-release-plz.yml@e50c0c1c33768335efa591c19adc0d501886b9eb
+    secrets:
+      op-service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}

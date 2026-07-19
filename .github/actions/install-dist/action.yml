@@ -1,0 +1,39 @@
+name: Install dist
+description: Install the pinned dist binary after verifying its release archive
+
+runs:
+  using: composite
+  steps:
+    - name: Download and verify dist
+      shell: bash
+      env:
+        DIST_VERSION: "0.32.0"
+        DIST_SHA256_ARM64: d29bcffeb3f8b0c517b4ce0dd2470926ed5cb0bb29d78c6bdd5f88d76ee14a6a
+        DIST_SHA256_X64: eb52f9fae0d0506774e9f1801c1168f87fa2c87a45e2d64d3ae7c89401929946
+      run: |
+        set -euo pipefail
+        case "$RUNNER_ARCH" in
+          ARM64)
+            target="aarch64-unknown-linux-gnu"
+            expected_sha256="$DIST_SHA256_ARM64"
+            ;;
+          X64)
+            target="x86_64-unknown-linux-gnu"
+            expected_sha256="$DIST_SHA256_X64"
+            ;;
+          *)
+            echo "unsupported runner architecture: $RUNNER_ARCH" >&2
+            exit 1
+            ;;
+        esac
+
+        archive="$RUNNER_TEMP/cargo-dist-$target.tar.xz"
+        unpacked="$RUNNER_TEMP/cargo-dist-$target"
+        curl --proto '=https' --tlsv1.2 --fail --location --show-error \
+          --output "$archive" \
+          "https://github.com/axodotdev/cargo-dist/releases/download/v$DIST_VERSION/cargo-dist-$target.tar.xz"
+        printf '%s  %s\n' "$expected_sha256" "$archive" | sha256sum --check --status
+        mkdir --parents "$unpacked" "$HOME/.cargo/bin"
+        tar --extract --xz --file "$archive" --strip-components=1 --directory "$unpacked"
+        install --mode 0755 "$unpacked/dist" "$HOME/.cargo/bin/dist"
+        echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
