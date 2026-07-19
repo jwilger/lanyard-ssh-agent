@@ -16,7 +16,7 @@ claim:
 
 ## Acceptance criteria
 
-- [ ] The homepage hero artwork preserves its intrinsic aspect ratio at every supported viewport width and never appears vertically stretched.
+- [x] The homepage hero artwork preserves its intrinsic aspect ratio at every supported viewport width and never appears vertically stretched.
 - [ ] The hero layout remains visually balanced and does not introduce horizontal overflow on narrow mobile viewports.
 - [ ] Desktop presentation remains consistent with the established Lanyard site design.
 - [ ] Automated browser coverage verifies the hero image dimensions and absence of horizontal overflow at representative desktop and mobile viewport sizes.
