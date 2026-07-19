@@ -1,7 +1,7 @@
 ---
 title: Build the Lanyard brand and documentation website
 blocked_by: []
-blocks: [20260719-6t5b-automate-releases-artifacts-crates-io-and-github-pages]
+blocks: []
 tags: []
 pr_mr_url: 
 pr_mr_status: 

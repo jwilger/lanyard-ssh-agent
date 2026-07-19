@@ -1,6 +1,6 @@
 ---
 title: Automate releases, artifacts, crates.io, and GitHub Pages
-blocked_by: [20260719-vkmy-build-the-lanyard-brand-and-documentation-website]
+blocked_by: []
 blocks: [20260719-7kjj-adopt-lanyard-on-gregor]
 tags: []
 pr_mr_url: 
