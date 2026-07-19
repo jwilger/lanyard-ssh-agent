@@ -9,6 +9,8 @@ pr_mr_status:
 
 ## Summary
 
+Create a distinctive Astro GitHub Pages site and complete user/developer documentation.
+
 ## Context / Why
 
 ## Acceptance criteria
