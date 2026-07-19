@@ -21,7 +21,7 @@ Select the first viable owner of a signing key, retry safely, and promote succes
 - [x] Forwarded or discovered candidates are initially preferred over static fallback
 - [x] Successful signing promotes that backend without identity-list side effects
 - [x] Timeouts and generic failures advance to the next candidate
-- [ ] Lanyard fails closed when no candidate signs
+- [x] Lanyard fails closed when no candidate signs
 
 ## Subtasks
 
