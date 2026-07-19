@@ -5,6 +5,9 @@ blocks: [20260719-a5jv-package-the-daemon-with-home-manager-and-systemd]
 tags: []
 pr_mr_url: 
 pr_mr_status: 
+claim:
+  host: unknown
+  session: unknown
 ---
 
 ## Summary
