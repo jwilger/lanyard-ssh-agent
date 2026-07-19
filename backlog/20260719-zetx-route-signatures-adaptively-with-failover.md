@@ -1,7 +1,7 @@
 ---
 title: Route signatures adaptively with failover
 blocked_by: [20260719-4rpk-aggregate-discovered-and-registered-agent-identities]
-blocks: []
+blocks: [20260719-bebi-verify-end-to-end-ssh-authentication-and-git-signing]
 tags: []
 pr_mr_url: 
 pr_mr_status: 

@@ -1,6 +1,6 @@
 ---
 title: Verify end-to-end SSH authentication and Git signing
-blocked_by: []
+blocked_by: [20260719-zetx-route-signatures-adaptively-with-failover]
 blocks: []
 tags: []
 pr_mr_url: 
