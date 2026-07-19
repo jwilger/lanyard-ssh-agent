@@ -14,6 +14,10 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
+      - name: Configure task-branch author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - name: Install Tiber
         env:
           TIBER_SOURCE_REVISION: ef46b874940ff406d83d4b34b59a54c2724a6eab

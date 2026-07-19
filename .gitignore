@@ -5,4 +5,4 @@
 /result
 .direnv/
 output/playwright/
-/mutants.out/
+/mutants.out*/
