@@ -8,6 +8,10 @@
       url = "github:nix-community/fenix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    home-manager = {
+      url = "github:nix-community/home-manager";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -16,6 +20,7 @@
       nixpkgs,
       flake-utils,
       fenix,
+      home-manager,
     }:
     flake-utils.lib.eachSystem
       [
@@ -43,6 +48,39 @@
             src = self;
             cargoLock.lockFile = ./Cargo.lock;
           };
+          testPackage = pkgs.writeShellScriptBin "lanyard-ssh-agent" ''
+            exit 0
+          '';
+          homeConfiguration = home-manager.lib.homeManagerConfiguration {
+            inherit pkgs;
+            modules = [
+              self.homeManagerModules.default
+              {
+                home = {
+                  username = "lanyard-test";
+                  homeDirectory = "/home/lanyard-test";
+                  stateVersion = "26.05";
+                };
+                programs.lanyard-ssh-agent = {
+                  enable = true;
+                  package = testPackage;
+                };
+              }
+            ];
+          };
+          defaultHomeConfiguration = home-manager.lib.homeManagerConfiguration {
+            inherit pkgs;
+            modules = [
+              self.homeManagerModules.default
+              {
+                home = {
+                  username = "lanyard-test";
+                  homeDirectory = "/home/lanyard-test";
+                  stateVersion = "26.05";
+                };
+              }
+            ];
+          };
         in
         {
           packages = {
@@ -51,7 +89,15 @@
           };
           apps.default = flake-utils.lib.mkApp { drv = package; };
           formatter = pkgs.nixfmt-tree;
-          checks.package = package;
+          checks = {
+            package = package;
+            home-manager-module =
+              assert defaultHomeConfiguration.config.programs.lanyard-ssh-agent.package == package;
+              pkgs.runCommand "lanyard-home-manager-module" { } ''
+                test -x ${homeConfiguration.config.home.path}/bin/lanyard-ssh-agent
+                touch "$out"
+              '';
+          };
           devShells.default = pkgs.mkShell {
             packages = with pkgs; [
               actionlint
@@ -69,5 +115,8 @@
             '';
           };
         }
-      );
+      )
+    // {
+      homeManagerModules.default = import ./nix/home-manager-module.nix self;
+    };
 }
