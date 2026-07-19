@@ -21,6 +21,7 @@ Use the canonical Markdown files under docs/adr as the source of truth. The site
 - [ ] An architecture index lists ADR number, title, and status and links to each record
 - [ ] Existing website references to ADRs link to the published pages
 - [ ] ADR pages use the established site typography, navigation, responsive layout, and accessible semantics
+- [ ] The site build fails when an indexed or referenced ADR is missing
 
 ## Subtasks
 
