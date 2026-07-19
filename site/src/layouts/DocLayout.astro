@@ -1,0 +1,81 @@
+---
+import BaseLayout from "./BaseLayout.astro";
+
+interface Props {
+  title: string;
+  eyebrow: string;
+  description: string;
+}
+const { title, eyebrow, description } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const current = Astro.url.pathname;
+const currentPage = (path: string) =>
+  current === `${base}${path}` ? "page" : undefined;
+---
+
+<BaseLayout title={`${title} — Lanyard manual`} {description} section={eyebrow}>
+  <div class="manual-shell">
+    <aside class="manual-index">
+      <p>MANUAL / REV. 01</p>
+      <nav aria-label="Documentation">
+        <a href={`${base}docs/`} aria-current={currentPage("docs/")}
+          ><span>01</span>Overview</a
+        >
+        <a
+          href={`${base}docs/quick-start/`}
+          aria-current={currentPage("docs/quick-start/")}
+          ><span>02</span>Quick start</a
+        >
+        <a href={`${base}docs/cli/`} aria-current={currentPage("docs/cli/")}
+          ><span>03</span>CLI & config</a
+        >
+        <a href={`${base}docs/nix/`} aria-current={currentPage("docs/nix/")}
+          ><span>04</span>Home Manager & Nix</a
+        >
+        <a
+          href={`${base}docs/routing/`}
+          aria-current={currentPage("docs/routing/")}
+          ><span>05</span>Routing model</a
+        >
+        <a
+          href={`${base}docs/git-signing/`}
+          aria-current={currentPage("docs/git-signing/")}
+          ><span>06</span>Git signing</a
+        >
+        <a
+          href={`${base}docs/security/`}
+          aria-current={currentPage("docs/security/")}
+          ><span>07</span>Security</a
+        >
+        <a
+          href={`${base}docs/troubleshooting/`}
+          aria-current={currentPage("docs/troubleshooting/")}
+          ><span>08</span>Troubleshooting</a
+        >
+        <a
+          href={`${base}docs/architecture/`}
+          aria-current={currentPage("docs/architecture/")}
+          ><span>09</span>Architecture</a
+        >
+        <a
+          href={`${base}docs/contributing/`}
+          aria-current={currentPage("docs/contributing/")}
+          ><span>10</span>Contributing</a
+        >
+        <a
+          href={`${base}docs/releases/`}
+          aria-current={currentPage("docs/releases/")}
+          ><span>11</span>Releases & licenses</a
+        >
+      </nav>
+    </aside>
+    <article class="manual-page">
+      <header class="manual-title">
+        <p>{eyebrow}</p>
+        <h1>{title}</h1>
+        <div>{description}</div>
+      </header>
+      <slot />
+    </article>
+  </div>
+</BaseLayout>

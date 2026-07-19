@@ -1,0 +1,46 @@
+---
+import DocLayout from "../../layouts/DocLayout.astro";
+const base = import.meta.env.BASE_URL;
+---
+
+<DocLayout
+  title="Operator’s overview"
+  eyebrow="SECTION 01 / ORIENTATION"
+  description="Lanyard gives every shell, multiplexer, SSH client, and Git process one durable SSH agent address while routing each request to the agents that are actually available."
+>
+  <div class="prose">
+    <h2>The assignment</h2>
+    <p>
+      Set <code>SSH_AUTH_SOCK</code> once—to Lanyard’s stable socket—and stop carrying
+      temporary agent paths across session boundaries. Lanyard discovers forwarded
+      OpenSSH agents, accepts explicit registrations, and keeps a static local agent
+      such as 1Password in reserve.
+    </p>
+    <div class="note">
+      <strong>DEFAULT SOCKET</strong><code
+        >$XDG_RUNTIME_DIR/lanyard-ssh-agent/agent.sock</code
+      >
+    </div>
+    <h2>What it handles</h2>
+    <ul>
+      <li>Normal SSH public-key authentication.</li><li>
+        Git commit and tag signing with <code>gpg.format = ssh</code>.
+      </li><li>
+        Sessions that outlive the forwarded agent which created them.
+      </li><li>
+        Multiple simultaneous remote logins, without manual socket surgery.
+      </li>
+    </ul>
+    <h2>What it does not do</h2>
+    <p>
+      Lanyard is not an agent, keychain, secret store, or forwarding transport.
+      It cannot unlock 1Password and it never reads private key material. It is
+      a deliberately read-only protocol router.
+    </p>
+    <div class="next-links">
+      <a href={`${base}docs/quick-start/`}>NEXT / QUICK START →</a><a
+        href={`${base}docs/architecture/`}>SEE / ARCHITECTURE →</a
+      >
+    </div>
+  </div>
+</DocLayout>

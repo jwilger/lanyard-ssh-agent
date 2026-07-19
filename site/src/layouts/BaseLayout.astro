@@ -1,0 +1,93 @@
+---
+import BrandMark from "../components/BrandMark.astro";
+import "@fontsource/ibm-plex-mono/latin-400.css";
+import "@fontsource/ibm-plex-mono/latin-600.css";
+import "@fontsource/space-grotesk/latin-400.css";
+import "@fontsource/space-grotesk/latin-600.css";
+import "@fontsource/space-grotesk/latin-700.css";
+import "../styles/global.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+  section?: string;
+}
+
+const {
+  title = "Lanyard — one socket for every SSH agent",
+  description = "A switching SSH agent proxy for forwarded agents, 1Password, Git commit signing, and terminal multiplexers.",
+  section,
+} = Astro.props;
+const base = import.meta.env.BASE_URL;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="theme-color" content="#f2eddf" />
+    <meta name="description" content={description} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonical} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href={`${base}favicon.svg`} type="image/svg+xml" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Skip to content</a>
+    <header class="site-header">
+      <a class="wordmark" href={base} aria-label="Lanyard home">
+        <BrandMark compact />
+        <span>LANYARD</span>
+        <small>SSH AGENT SWITCHBOARD</small>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href={`${base}docs/`} data-index="01">Manual</a>
+        <a href={`${base}docs/quick-start/`} data-index="02">Install</a>
+        <a href={`${base}docs/architecture/`} data-index="03">Architecture</a>
+        <a href="https://github.com/jwilger/lanyard-ssh-agent" data-index="04"
+          >GitHub</a
+        >
+      </nav>
+    </header>
+    <aside class="release-notice" aria-label="Project status">
+      <strong>PRE-RELEASE MANUAL</strong>
+      <span
+        >The v0.1 interface is under active development. Check each section’s
+        status before operating against main.</span
+      >
+    </aside>
+    {
+      section && (
+        <div class="section-band" role="region" aria-label="Manual section">
+          <>
+            <span>FIELD MANUAL</span>
+            <strong>{section}</strong>
+          </>
+        </div>
+      )
+    }
+    <main id="content"><slot /></main>
+    <footer>
+      <div><BrandMark /><strong>LANYARD</strong></div>
+      <p>One stable socket. No stale sessions.</p>
+      <nav aria-label="Footer navigation">
+        <a href={`${base}docs/security/`}>Security</a>
+        <a href={`${base}docs/contributing/`}>Contributing</a>
+        <a href={`${base}docs/releases/`}>Releases</a>
+        <a
+          href="https://github.com/jwilger/lanyard-ssh-agent/blob/main/LICENSE-MIT"
+          >MIT</a
+        >
+        <a
+          href="https://github.com/jwilger/lanyard-ssh-agent/blob/main/LICENSE-APACHE"
+          >Apache-2.0</a
+        >
+      </nav>
+    </footer>
+  </body>
+</html>

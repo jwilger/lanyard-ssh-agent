@@ -1,0 +1,42 @@
+<figure class="route-diagram" aria-labelledby="route-caption">
+  <svg
+    viewBox="0 0 940 330"
+    role="img"
+    aria-labelledby="route-title route-desc"
+  >
+    <title id="route-title">How Lanyard routes SSH agent requests</title>
+    <desc id="route-desc"
+      >Three agent sources converge at Lanyard, which exposes one stable socket
+      to SSH, Git, and terminal multiplexers.</desc
+    >
+    <g class="station source">
+      <circle cx="56" cy="54" r="11"></circle>
+      <text x="82" y="38">FORWARDED AGENT</text>
+      <circle cx="56" cy="164" r="11"></circle>
+      <text x="82" y="148">REGISTERED AGENT</text>
+      <circle cx="56" cy="274" r="11"></circle>
+      <text x="82" y="258">1PASSWORD</text>
+    </g>
+    <path class="line cyan" d="M67 54h216c62 0 77 110 142 110h58"></path>
+    <path class="line orange" d="M67 164h416"></path>
+    <path class="line black" d="M67 274h216c62 0 77-110 142-110h58"></path>
+    <g class="selector">
+      <rect x="483" y="119" width="144" height="90"></rect>
+      <text x="555" y="155" text-anchor="middle">LANYARD</text>
+      <text class="small" x="555" y="182" text-anchor="middle"
+        >TRY · PROMOTE · FAIL CLOSED</text
+      >
+    </g>
+    <path class="line orange output" d="M627 164h251"></path>
+    <circle class="terminal" cx="878" cy="164" r="12"></circle>
+    <g class="destinations">
+      <text x="676" y="112">SSH</text>
+      <text x="742" y="112">GIT SIGN</text>
+      <text x="840" y="112">ZELLIJ</text>
+    </g>
+  </svg>
+  <figcaption id="route-caption">
+    <span>FIG. 01</span> Requests enter through one stable socket. Lanyard finds a
+    key without making your shell remember where it lives.
+  </figcaption>
+</figure>

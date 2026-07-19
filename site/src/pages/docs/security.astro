@@ -1,0 +1,47 @@
+---
+import DocLayout from "../../layouts/DocLayout.astro";
+---
+
+<DocLayout
+  title="Security boundary"
+  eyebrow="SECTION 07 / SAFETY"
+  description="Lanyard reduces stale-socket failure without becoming a second place that holds secrets."
+>
+  <div class="prose">
+    <h2>Trust model</h2><p>
+      Lanyard is a single-owner local tool. It trusts the account that launches
+      it, local configuration, installed agents, and socket paths that owner
+      explicitly registers or permits discovery to find. Normal stale state,
+      agent disappearance, crashes, and concurrent sessions remain in scope.
+    </p>
+    <h2>Private keys</h2><p>
+      Private key bytes never cross the agent protocol and are never available
+      to Lanyard. It forwards identity and signature messages; upstream agents
+      enforce their own confirmation, unlock, biometric, and destination
+      restrictions.
+    </p>
+    <h2>Read-only surface</h2><p>
+      Adding/removing identities, locking/unlocking agents, and mutation
+      extensions are rejected. Unknown extensions are rejected. Protocol frames
+      larger than 256 KiB and candidate sets beyond the configured limit are
+      bounded.
+    </p>
+    <h2>Availability tradeoff</h2><p>
+      After a candidate advertises a key, a generic signing failure causes
+      Lanyard to try the next matching agent. This is intentional: some agents
+      use the same failure response for “not available now” and explicit denial.
+      If all candidates fail, Lanyard returns failure; it never fabricates a
+      signature.
+    </p>
+    <div class="warning note">
+      <strong>FORWARDING REMAINS POWERFUL</strong>An SSH server receiving your
+      forwarded agent can request signatures while the connection exists. Use
+      OpenSSH destination constraints and only forward to machines you trust.
+    </div>
+    <h2>Reporting</h2><p>
+      Please report vulnerabilities privately through GitHub’s security advisory
+      interface. Do not include private key material, live socket contents, or
+      sensitive hostnames in diagnostics.
+    </p>
+  </div>
+</DocLayout>

@@ -1,0 +1,49 @@
+---
+import DocLayout from "../../layouts/DocLayout.astro";
+---
+
+<DocLayout
+  title="Releases & licenses"
+  eyebrow="SECTION 11 / DISTRIBUTION"
+  description="Automated, reproducible releases deliver crates, Linux archives, checksums, and this manual."
+>
+  <div class="prose">
+    <h2>Release channels</h2><table class="spec-table">
+      <thead><tr><th>Channel</th><th>Artifact</th></tr></thead><tbody
+        ><tr
+          ><td>crates.io</td><td
+            ><code>lanyard-ssh-agent</code> source package</td
+          ></tr
+        ><tr
+          ><td>GitHub Releases</td><td
+            >x86_64 and aarch64 Linux archives plus checksums</td
+          ></tr
+        ><tr
+          ><td>Nix flake</td><td
+            >package, app, checks, and Home Manager module</td
+          ></tr
+        ><tr><td>GitHub Pages</td><td>This versioned operator manual</td></tr
+        ></tbody
+      >
+    </table>
+    <h2>Versioning</h2><p>
+      Release-plz derives changelog entries and versions from Conventional
+      Commits. Cargo-dist builds platform artifacts. Reusable workflows are
+      pinned to immutable revisions so changes to the release machinery are
+      reviewable.
+    </p>
+    <h2>
+      Verify a download
+    </h2><pre><code>sha256sum --check lanyard-ssh-agent-*.sha256</code></pre>
+    <h2>Dual license</h2><p>
+      Unless explicitly stated otherwise, Lanyard is available under either the
+      Apache License, Version 2.0 or the MIT license, at your option.
+      Contributions are accepted under the same terms.
+    </p>
+    <p>
+      <a href="https://github.com/jwilger/lanyard-ssh-agent/releases"
+        >Browse releases →</a
+      >
+    </p>
+  </div>
+</DocLayout>

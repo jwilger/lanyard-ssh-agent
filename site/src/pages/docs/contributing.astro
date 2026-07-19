@@ -1,0 +1,44 @@
+---
+import DocLayout from "../../layouts/DocLayout.astro";
+---
+
+<DocLayout
+  title="Contributing"
+  eyebrow="SECTION 10 / WORKSHOP"
+  description="Small, signed, test-driven changes keep a security-adjacent protocol tool understandable."
+>
+  <div class="prose">
+    <h2>
+      Enter the development shell
+    </h2><pre><code>nix develop
+just test</code></pre><p>
+      The flake pins the Rust toolchain. Website work additionally requires
+      Node.js 22 or newer and npm. Use the repository’s local gate before each
+      commit; CI repeats formatting, strict linting, tests, and builds.
+    </p>
+    <h2>Working agreements</h2><ul>
+      <li>Start observable behavior with a failing black-box test.</li><li>
+        Keep the routing core pure and I/O at the boundary.
+      </li><li>Use semantic types and explicit error values.</li><li>
+        Record architectural choices as ADRs.
+      </li><li>Use Conventional Commits and signed commits.</li>
+    </ul>
+    <h2>
+      Website changes
+    </h2><pre><code>cd site
+npm ci
+npm run dev
+npm run check
+npm run test:browser</code></pre><p
+    >
+      The site is custom Astro with no client framework. Preserve keyboard
+      navigation, readable contrast, reduced-motion behavior, and the repository
+      subpath in every link.
+    </p>
+    <h2>Submit changes</h2><p>
+      Open a focused pull request against <code>main</code>. Explain the
+      operator-visible behavior, include the RED/GREEN evidence, and call out
+      protocol or threat-model consequences.
+    </p>
+  </div>
+</DocLayout>

@@ -1,0 +1,59 @@
+---
+import CopyCommand from "../../components/CopyCommand.astro";
+import DocLayout from "../../layouts/DocLayout.astro";
+const base = import.meta.env.BASE_URL;
+---
+
+<DocLayout
+  title="Quick start"
+  eyebrow="SECTION 02 / INSTALLATION"
+  description="Install the binary, start the switchboard, and point SSH at the stable socket."
+>
+  <div class="prose">
+    <div class="warning note">
+      <strong>CURRENT SOURCE STATUS</strong>The complete v0.1 switching
+      interface documented in this manual is still landing. Today’s source
+      supports one explicit upstream through <code>serve --upstream PATH</code>.
+    </div>
+    <h2>Install the current source</h2>
+    <h3>With Nix</h3><CopyCommand
+      command={'nix run github:jwilger/lanyard-ssh-agent -- serve --upstream "$HOME/.1password/agent.sock"'}
+    />
+    <h3>With Cargo</h3><CopyCommand
+      command="cargo install --git https://github.com/jwilger/lanyard-ssh-agent"
+    />
+    <p>
+      Crates.io and prebuilt Linux archives will become available with the first
+      release.
+    </p>
+    <h2>Start the switchboard</h2><CopyCommand
+      command={'lanyard-ssh-agent serve --upstream "$HOME/.1password/agent.sock"'}
+    />
+    <p>
+      The service creates the agent socket and a sibling control socket beneath <code
+        >$XDG_RUNTIME_DIR/lanyard-ssh-agent/</code
+      >.
+    </p>
+    <h2>Point clients at it</h2>
+    <pre><code>export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/lanyard-ssh-agent/agent.sock"
+
+# ~/.ssh/config
+Host *
+  IdentityAgent $XDG_RUNTIME_DIR/lanyard-ssh-agent/agent.sock</code></pre>
+    <h2>Register a forwarded agent <small>(planned for v0.1)</small></h2>
+    <p>
+      Capture the incoming value before replacing <code>SSH_AUTH_SOCK</code>:
+    </p>
+    <CopyCommand command={'lanyard-ssh-agent register "$SSH_AUTH_SOCK"'} />
+    <p>
+      Then export the stable socket. Discovery also watches conventional OpenSSH
+      temporary socket locations.
+    </p>
+    <h2>Verify the current source</h2><CopyCommand command="ssh-add -L" />
+    <div class="next-links">
+      <a href={`${base}docs/cli/`}>NEXT / CLI & CONFIG →</a><a
+        href={`${base}docs/nix/`}>NIXOS / HOME MANAGER →</a
+      >
+    </div>
+  </div>
+</DocLayout>

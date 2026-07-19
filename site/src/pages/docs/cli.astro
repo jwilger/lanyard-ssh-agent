@@ -1,0 +1,69 @@
+---
+import DocLayout from "../../layouts/DocLayout.astro";
+---
+
+<DocLayout
+  title="CLI & configuration"
+  eyebrow="SECTION 03 / CONTROLS"
+  description="A small command surface for serving, registering, inspecting, and scripting the switchboard."
+>
+  <div class="prose">
+    <div class="warning note">
+      <strong>PRE-RELEASE CONTRACT</strong><code>serve --upstream PATH</code> is available
+      today. Control commands and configuration below describe the v0.1 interface
+      being implemented.
+    </div>
+    <h2>Commands</h2>
+    <table class="spec-table">
+      <thead><tr><th>Command</th><th>Effect</th><th>Status</th></tr></thead
+      ><tbody>
+        <tr
+          ><td><code>serve</code></td><td
+            >Run the agent listener in the foreground. Current source requires <code
+              >--upstream PATH</code
+            >.</td
+          ><td>Available</td></tr
+        >
+        <tr
+          ><td><code>register PATH</code></td><td
+            >Add or refresh an upstream agent socket.</td
+          ><td>Planned v0.1</td></tr
+        >
+        <tr
+          ><td><code>unregister PATH</code></td><td
+            >Remove an explicit registration.</td
+          ><td>Planned v0.1</td></tr
+        >
+        <tr
+          ><td><code>status [--json]</code></td><td
+            >Report candidates, reachability, identity counts, and routing
+            priority.</td
+          ><td>Planned v0.1</td></tr
+        >
+        <tr
+          ><td><code>socket [--control]</code></td><td
+            >Print the stable agent or control socket path for shell scripts.</td
+          ><td>Planned v0.1</td></tr
+        >
+      </tbody>
+    </table>
+    <h2>Configuration file <small>(planned for v0.1)</small></h2><p>
+      By default Lanyard reads <code
+        >$XDG_CONFIG_HOME/lanyard-ssh-agent/config.toml</code
+      >.
+    </p>
+    <pre><code># A durable local fallback.
+static_agents = ["~/.1password/agent.sock"]
+
+# Conservative protocol budgets.
+connect_timeout_ms = 500
+identities_timeout_ms = 2000
+sign_timeout_ms = 30000
+max_candidates = 32
+max_message_bytes = 262144</code></pre>
+    <div class="note">
+      <strong>SCRIPTING CONTRACT</strong>Use <code>status --json</code> for automation.
+      Human output may gain explanatory fields; JSON field meanings remain versioned.
+    </div>
+  </div>
+</DocLayout>

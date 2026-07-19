@@ -1,0 +1,37 @@
+---
+import CopyCommand from "../../components/CopyCommand.astro";
+import DocLayout from "../../layouts/DocLayout.astro";
+---
+
+<DocLayout
+  title="Git signing"
+  eyebrow="SECTION 06 / SIGNATURES"
+  description="Use the same stable agent path for commit and tag signatures, whether the key is local or forwarded."
+>
+  <div class="prose">
+    <h2>Configure Git for SSH signatures</h2>
+    <CopyCommand command="git config --global gpg.format ssh" />
+    <CopyCommand
+      command="git config --global user.signingkey ~/.ssh/id_ed25519.pub"
+    />
+    <CopyCommand command="git config --global commit.gpgsign true" />
+    <p>
+      Git invokes <code>ssh-keygen</code>, which consults <code
+        >SSH_AUTH_SOCK</code
+      >. When that variable points at Lanyard, the requested public key can be
+      signed by a forwarded laptop agent or by the local fallback.
+    </p>
+    <h2>Verify a commit</h2><CopyCommand
+      command="git commit --allow-empty -m 'chore: verify signing'"
+    /><CopyCommand command="git log --show-signature -1" />
+    <h2>Allowed signers</h2><p>
+      Verification is separate from signing. For local verification, configure
+      Git’s <code>gpg.ssh.allowedSignersFile</code> with the identities you trust.
+    </p>
+    <pre><code>john@example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA...</code></pre>
+    <div class="note">
+      <strong>NO KEY COPYING</strong>The public key selects a signer. The
+      private key stays inside its original agent throughout.
+    </div>
+  </div>
+</DocLayout>

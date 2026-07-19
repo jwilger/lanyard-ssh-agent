@@ -1,0 +1,44 @@
+---
+import DocLayout from "../../layouts/DocLayout.astro";
+---
+
+<DocLayout
+  title="Home Manager & Nix"
+  eyebrow="SECTION 04 / NIXOS"
+  description="Let the module own the service, stable environment, incoming-agent registration, and SSH client setting."
+>
+  <div class="prose">
+    <div class="warning note">
+      <strong>PLANNED FOR v0.1</strong>The flake package and app are available
+      today; the Home Manager module shown here is not yet exported from main.
+    </div>
+    <h2>
+      Flake input
+    </h2><pre><code>inputs.lanyard.url = "github:jwilger/lanyard-ssh-agent";</code></pre>
+    <h2>
+      Home Manager module
+    </h2><pre><code>{`{ inputs, ... }: {
+  imports = [ inputs.lanyard.homeManagerModules.default ];
+
+  programs.lanyard-ssh-agent = {
+    enable = true;
+    staticAgents = [ "$HOME/.1password/agent.sock" ];
+  };
+}`}</code></pre>
+    <p>
+      The module installs a systemd user service, configures the stable socket,
+      and provides shell integration that registers an incoming forwarded socket <em
+        >before</em
+      > replacing <code>SSH_AUTH_SOCK</code>.
+    </p>
+    <h2>
+      Manual SSH configuration
+    </h2><pre><code>programs.ssh.matchBlocks."*".identityAgent =
+  "$XDG_RUNTIME_DIR/lanyard-ssh-agent/agent.sock";</code></pre>
+    <div class="warning note">
+      <strong>ORDER MATTERS</strong>If your shell overwrites <code
+        >SSH_AUTH_SOCK</code
+      > first, the temporary forwarded path is lost. Capture, register, then export.
+    </div>
+  </div>
+</DocLayout>

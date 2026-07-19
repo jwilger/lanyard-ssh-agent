@@ -1,0 +1,95 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import RouteDiagram from "../components/RouteDiagram.astro";
+const base = import.meta.env.BASE_URL;
+---
+
+<BaseLayout>
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="kicker">SSH AGENT ROUTING / LINUX</p>
+      <h1>LANYARD <span>One socket. Every agent within reach.</span></h1>
+      <p class="hero-lede">
+        Keep Git signing and SSH authentication working as you move between a
+        local 1Password agent and forwarded laptop sessions—even inside the same
+        long-running Zellij session.
+      </p>
+      <div class="hero-actions">
+        <a class="button" href={`${base}docs/quick-start/`}>INSTALL LANYARD →</a
+        >
+        <a class="button secondary" href={`${base}docs/routing/`}
+          >READ THE ROUTING MODEL</a
+        >
+      </div>
+    </div>
+    <div class="hero-art">
+      <img
+        src={`${base}images/lanyard-selector.webp`}
+        alt="Four braided cords connected to an industrial selector switch"
+        width="1536"
+        height="1024"
+        fetchpriority="high"
+      />
+    </div>
+  </section>
+
+  <section class="operating-note" aria-labelledby="problem-title">
+    <header>
+      <p>OPERATING NOTE / 001</p>
+      <h2 id="problem-title">The stale socket problem.</h2>
+    </header>
+    <div class="operating-steps">
+      <section>
+        <span>01 / ARRIVE</span><h3>SSH in with agent forwarding.</h3><p>
+          Your laptop’s agent appears at a temporary socket.
+        </p>
+      </section>
+      <section>
+        <span>02 / ATTACH</span><h3>Join an existing Zellij session.</h3><p>
+          Its environment still remembers whichever socket started it.
+        </p>
+      </section>
+      <section>
+        <span>03 / ROUTE</span><h3>Point everything at Lanyard.</h3><p>
+          The socket stays put. The available agents can change underneath it.
+        </p>
+      </section>
+    </div>
+  </section>
+
+  <section class="route-wrap"><RouteDiagram /></section>
+
+  <section class="principles" aria-labelledby="principles-title">
+    <header>
+      <p class="kicker">DESIGN ORDERS</p><h2 id="principles-title">
+        A switchboard, not a vault.
+      </h2>
+    </header>
+    <dl>
+      <div>
+        <dt>01</dt><dd>
+          Lanyard never stores private keys. It speaks the standard SSH agent
+          protocol to agents you already trust.
+        </dd>
+      </div>
+      <div>
+        <dt>02</dt><dd>
+          Identities are combined and deduplicated. A signing request is offered
+          only to agents that advertised its key.
+        </dd>
+      </div>
+      <div>
+        <dt>03</dt><dd>
+          A successful signer moves to the front of the line. Timeouts and
+          failures fall through to the next candidate.
+        </dd>
+      </div>
+      <div>
+        <dt>04</dt><dd>
+          If no agent can sign, Lanyard fails closed. Mutation, key import, and
+          agent locking are deliberately out of service.
+        </dd>
+      </div>
+    </dl>
+  </section>
+</BaseLayout>

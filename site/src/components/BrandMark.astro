@@ -1,0 +1,21 @@
+---
+interface Props {
+  compact?: boolean;
+}
+
+const { compact = false } = Astro.props;
+---
+
+<svg
+  class:list={["brand-mark", { compact }]}
+  viewBox="0 0 164 52"
+  aria-hidden="true"
+  focusable="false"
+>
+  <path class="cord cord-a" d="M2 8h35c13 0 17 17 30 17h19"></path>
+  <path class="cord cord-b" d="M2 26h84"></path>
+  <path class="cord cord-c" d="M2 44h35c13 0 17-18 30-18h19"></path>
+  <rect class="switch" x="84" y="14" width="30" height="24" rx="2"></rect>
+  <circle class="dial" cx="99" cy="26" r="5"></circle>
+  <path class="cord cord-out" d="M114 26h47"></path>
+</svg>

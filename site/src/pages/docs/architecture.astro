@@ -1,0 +1,47 @@
+---
+import DocLayout from "../../layouts/DocLayout.astro";
+import RouteDiagram from "../../components/RouteDiagram.astro";
+---
+
+<DocLayout
+  title="Architecture"
+  eyebrow="SECTION 09 / INTERNALS"
+  description="A protocol-aware functional core describes routing decisions; a narrow asynchronous shell owns Unix sockets, clocks, and upstream I/O."
+>
+  <div class="prose">
+    <RouteDiagram />
+    <h2>Two socket faces</h2><p>
+      The agent socket exposes the OpenSSH agent protocol. A sibling control
+      socket exposes registration and status operations to the CLI. Keeping
+      control messages out of the agent protocol makes both boundaries smaller
+      and easier to test.
+    </p>
+    <h2>Functional core</h2><p>
+      Candidate ordering, identity deduplication, key-to-agent routing,
+      promotion, and failure transitions are deterministic values. The core
+      describes the next effect; it does not open sockets or read time.
+    </p>
+    <h2>Imperative shell</h2><p>
+      The Tokio-based shell accepts connections, applies bounded timeouts,
+      interprets core effects, and translates I/O failures into explicit domain
+      outcomes. Upstream tasks are isolated so one broken socket does not poison
+      the listener.
+    </p>
+    <h2>State lifecycle</h2><ol>
+      <li>Configuration establishes static candidates.</li><li>
+        Discovery and control registration add ephemeral candidates.
+      </li><li>Identity results build a deduplicated routing view.</li><li>
+        Successful signatures promote candidates in memory.
+      </li><li>
+        Service restart safely reconstructs state; no secret or key data is
+        persisted.
+      </li>
+    </ol>
+    <h2>Decision records</h2><p>
+      Repository ADRs document the proxy boundary, fallback semantics, OpenSSH
+      extension handling, Home Manager integration, and release architecture.
+      Revisit them when upstream protocol behavior or the Linux runtime model
+      changes.
+    </p>
+  </div>
+</DocLayout>
