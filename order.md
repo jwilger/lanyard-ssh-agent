@@ -1,4 +1,3 @@
-20260719-a5jv-package-the-daemon-with-home-manager-and-systemd
 20260719-6t5b-automate-releases-artifacts-crates-io-and-github-pages
 20260719-7kjj-adopt-lanyard-on-gregor
 20260719-9nuy-make-repository-worktree-ready
