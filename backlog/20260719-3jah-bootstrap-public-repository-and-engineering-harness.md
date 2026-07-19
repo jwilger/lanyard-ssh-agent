@@ -9,6 +9,8 @@ pr_mr_status:
 
 ## Summary
 
+Create the reproducible Rust, Nix, CI, policy, and architecture foundation for a public dual-licensed project.
+
 ## Context / Why
 
 ## Acceptance criteria
