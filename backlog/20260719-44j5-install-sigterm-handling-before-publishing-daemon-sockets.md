@@ -9,7 +9,11 @@ pr_mr_status:
 
 ## Summary
 
+Eliminate the startup race where agent.sock becomes connectable before the daemon has installed its SIGTERM handler, allowing an immediate service stop to exit by signal instead of cleaning up sockets.
+
 ## Context / Why
+
+Discovered while building the Home Manager module check in an optimized Nix build: serve_recovers_a_stale_socket failed because SIGTERM arrived after bind but before shutdown_signal was polled.
 
 ## Acceptance criteria
 
