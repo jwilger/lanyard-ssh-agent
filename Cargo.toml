@@ -1,0 +1,50 @@
+[package]
+name = "lanyard-ssh-agent"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "A resilient switching proxy for SSH agents"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/jwilger/lanyard-ssh-agent"
+homepage = "https://jwilger.github.io/lanyard-ssh-agent/"
+keywords = ["ssh", "agent", "git", "signing", "proxy"]
+categories = ["command-line-utilities", "authentication"]
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal"] }
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+restriction = { level = "deny", priority = -1 }
+# These restriction lints conflict with idiomatic application code or with the
+# other enabled lint groups; each relaxation is intentionally explicit.
+blanket_clippy_restriction_lints = "allow"
+implicit_return = "allow"
+inline_modules = "allow"
+missing_docs_in_private_items = "allow"
+question_mark_used = "allow"
+self_named_module_files = "allow"
+single_call_fn = "allow"
+std_instead_of_core = "allow"
+tests_outside_test_module = "allow"
+arbitrary_source_item_ordering = "allow"
+print_stdout = "allow"
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"

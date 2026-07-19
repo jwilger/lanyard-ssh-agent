@@ -1,0 +1,8 @@
+# tiber local working copy
+.tasks
+.dependencies/
+/target/
+/result
+.direnv/
+output/playwright/
+/mutants.out/

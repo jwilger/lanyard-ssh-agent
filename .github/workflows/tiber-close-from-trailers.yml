@@ -1,0 +1,26 @@
+name: tiber close from trailers
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  close:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+      - name: Install Tiber
+        env:
+          TIBER_SOURCE_REVISION: ef46b874940ff406d83d4b34b59a54c2724a6eab
+        run: |
+          git clone --depth 1 https://github.com/jwilger/ai-plugins.git .tiber-src
+          git -C .tiber-src fetch --depth 1 origin "$TIBER_SOURCE_REVISION"
+          git -C .tiber-src checkout --detach "$TIBER_SOURCE_REVISION"
+          cargo install --locked --path .tiber-src/plugins/tiber/rust/crates/tiber-cli --bin tiber --root .tiber-install
+          echo "$PWD/.tiber-install/bin" >> "$GITHUB_PATH"
+      - run: tiber close-from-trailers
