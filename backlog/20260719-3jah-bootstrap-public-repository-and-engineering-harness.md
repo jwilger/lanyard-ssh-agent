@@ -15,6 +15,8 @@ Create the reproducible Rust, Nix, CI, policy, and architecture foundation for a
 
 ## Acceptance criteria
 
+- [ ] A pinned flake dev shell supplies the stable Rust toolchain and project tools
+
 ## Subtasks
 
 ## Notes / Log
