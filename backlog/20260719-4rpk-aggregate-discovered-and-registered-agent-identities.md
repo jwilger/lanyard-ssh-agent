@@ -9,6 +9,8 @@ pr_mr_status:
 
 ## Summary
 
+Discover forwarded OpenSSH sockets and support explicit runtime registration while presenting a deduplicated identity union.
+
 ## Context / Why
 
 ## Acceptance criteria
