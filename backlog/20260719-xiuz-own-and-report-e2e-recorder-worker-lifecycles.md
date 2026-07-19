@@ -17,6 +17,8 @@ Final-review finding architecture-maintainability-001 from 20260719-bebi.
 
 ## Acceptance criteria
 
+- [ ] Recorder teardown waits for all connection workers without deadlock
+
 ## Subtasks
 
 ## Notes / Log
