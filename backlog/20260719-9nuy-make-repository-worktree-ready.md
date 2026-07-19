@@ -18,6 +18,7 @@ Use the worktrees plugin's project-specific setup. Integrate the confirmed comma
 ## Acceptance criteria
 
 - [ ] Bootstrap and teardown scripts create and remove isolated ticket worktrees under the documented checkout root
+- [ ] The existing justfile exposes confirmed worktree lifecycle commands
 
 ## Subtasks
 
