@@ -17,6 +17,7 @@ Ship a Nix package, Home Manager module, and systemd user service with safe shel
 
 - [ ] The flake exposes packages, apps, checks, and a Home Manager module
 - [ ] The user service owns the stable runtime and control sockets
+- [ ] Shell integration registers incoming forwarded sockets before exporting Lanyard's socket
 
 ## Subtasks
 
