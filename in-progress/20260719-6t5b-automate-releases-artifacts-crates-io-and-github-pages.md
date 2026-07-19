@@ -26,3 +26,5 @@ Automate versioning, signed release artifacts, crates.io publication, and Pages 
 ## Subtasks
 
 ## Notes / Log
+
+- 2026-07-19: Pages deployment, crates.io packaging, and cargo-dist artifact automation are landed and verified in main. Remaining blocker: every available pinned jwilger/gha-workflows release-plz revision invokes mutable nested action tags in jobs handling release credentials. The caller remains intentionally fail-closed until that external workflow is fixed and repinned; acceptance criterion 1 is therefore incomplete.
