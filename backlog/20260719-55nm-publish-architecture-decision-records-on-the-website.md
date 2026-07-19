@@ -22,6 +22,7 @@ Use the canonical Markdown files under docs/adr as the source of truth. The site
 - [ ] Existing website references to ADRs link to the published pages
 - [ ] ADR pages use the established site typography, navigation, responsive layout, and accessible semantics
 - [ ] The site build fails when an indexed or referenced ADR is missing
+- [ ] Browser tests cover the architecture index and at least one complete ADR page
 
 ## Subtasks
 
