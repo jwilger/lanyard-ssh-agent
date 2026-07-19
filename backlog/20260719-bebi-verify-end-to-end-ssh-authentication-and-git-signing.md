@@ -15,6 +15,8 @@ Exercise real OpenSSH authentication and Git SSH commit signing against the prox
 
 ## Acceptance criteria
 
+- [ ] Black-box tests cover SSH authentication through Lanyard
+
 ## Subtasks
 
 ## Notes / Log
