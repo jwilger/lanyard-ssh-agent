@@ -5,6 +5,9 @@ blocks: [20260719-7kjj-adopt-lanyard-on-gregor]
 tags: []
 pr_mr_url: 
 pr_mr_status: 
+claim:
+  host: unknown
+  session: unknown
 ---
 
 ## Summary
