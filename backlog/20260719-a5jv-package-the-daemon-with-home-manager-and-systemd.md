@@ -15,6 +15,8 @@ Ship a Nix package, Home Manager module, and systemd user service with safe shel
 
 ## Acceptance criteria
 
+- [ ] The flake exposes packages, apps, checks, and a Home Manager module
+
 ## Subtasks
 
 ## Notes / Log
