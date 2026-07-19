@@ -20,7 +20,7 @@ Discover forwarded OpenSSH sockets and support explicit runtime registration whi
 
 - [x] Forwarded agents can be auto-discovered and explicitly registered or unregistered
 - [x] The static 1Password agent remains available as fallback
-- [ ] Identity results are deduplicated and candidate count is bounded
+- [x] Identity results are deduplicated and candidate count is bounded
 - [ ] Status and socket commands expose stable machine-readable state
 
 ## Subtasks
