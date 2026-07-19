@@ -1,6 +1,6 @@
 ---
 title: Aggregate discovered and registered agent identities
-blocked_by: []
+blocked_by: [20260719-5tiw-serve-one-static-ssh-agent-through-a-stable-socket]
 blocks: []
 tags: []
 pr_mr_url: 
