@@ -1,6 +1,6 @@
 ---
 title: Package the daemon with Home Manager and systemd
-blocked_by: []
+blocked_by: [20260719-bebi-verify-end-to-end-ssh-authentication-and-git-signing]
 blocks: []
 tags: []
 pr_mr_url: 

@@ -1,7 +1,7 @@
 ---
 title: Verify end-to-end SSH authentication and Git signing
 blocked_by: [20260719-zetx-route-signatures-adaptively-with-failover]
-blocks: []
+blocks: [20260719-a5jv-package-the-daemon-with-home-manager-and-systemd]
 tags: []
 pr_mr_url: 
 pr_mr_status: 
