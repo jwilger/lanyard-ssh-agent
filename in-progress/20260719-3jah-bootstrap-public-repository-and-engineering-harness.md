@@ -5,6 +5,9 @@ blocks: [20260719-5tiw-serve-one-static-ssh-agent-through-a-stable-socket]
 tags: []
 pr_mr_url: 
 pr_mr_status: 
+claim:
+  host: unknown
+  session: unknown
 ---
 
 ## Summary
