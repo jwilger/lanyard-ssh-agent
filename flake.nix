@@ -70,6 +70,7 @@
                   upstream = ''/home/lanyard-test/Agent 100% "socket"'';
                 };
                 programs.bash.enable = true;
+                programs.zsh.enable = true;
               }
             ];
           };
@@ -114,7 +115,8 @@
               '';
             home-manager-shell-integration =
               let
-                profile = "${homeConfiguration.config.home-files}/.profile";
+                bashProfile = "${homeConfiguration.config.home-files}/.profile";
+                zshEnvironment = "${homeConfiguration.config.home-files}/.zshenv";
               in
               pkgs.runCommand "lanyard-home-manager-shell-integration" { } ''
                 export HOME="$TMPDIR/home"
@@ -123,15 +125,23 @@
                 export SSH_CONNECTION="client.example 22 server.example 2222"
                 export XDG_RUNTIME_DIR="$TMPDIR/runtime"
 
-                source ${profile}
+                source ${bashProfile}
 
                 test "$(cat "$LANYARD_TEST_LOG")" = "$TMPDIR/forwarded-agent.sock|register $TMPDIR/forwarded-agent.sock"
                 test "$SSH_AUTH_SOCK" = "$TMPDIR/runtime/lanyard-ssh-agent/agent.sock"
 
                 export LANYARD_TEST_FAIL=1
                 export SSH_AUTH_SOCK="$TMPDIR/second-forwarded-agent.sock"
-                source ${profile}
+                source ${bashProfile}
                 test "$SSH_AUTH_SOCK" = "$TMPDIR/runtime/lanyard-ssh-agent/agent.sock"
+
+                unset LANYARD_TEST_FAIL
+                export SSH_AUTH_SOCK="$TMPDIR/zsh-forwarded-agent.sock"
+                ${pkgs.zsh}/bin/zsh -c '
+                  source ${zshEnvironment}
+                  test "$SSH_AUTH_SOCK" = "$XDG_RUNTIME_DIR/lanyard-ssh-agent/agent.sock"
+                '
+                tail -n 1 "$LANYARD_TEST_LOG" | grep -F -- "$TMPDIR/zsh-forwarded-agent.sock|register $TMPDIR/zsh-forwarded-agent.sock"
                 touch "$out"
               '';
             home-manager-ssh-integration =

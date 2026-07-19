@@ -44,6 +44,7 @@ in
     home.packages = [ cfg.package ];
 
     programs.bash.profileExtra = lib.mkIf pkgs.stdenv.isLinux (lib.mkOrder 900 bashIntegration);
+    programs.zsh.envExtra = lib.mkIf pkgs.stdenv.isLinux (lib.mkOrder 900 bashIntegration);
 
     programs.ssh = {
       enable = true;
