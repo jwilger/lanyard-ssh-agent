@@ -1,7 +1,7 @@
 ---
 title: Aggregate discovered and registered agent identities
 blocked_by: [20260719-5tiw-serve-one-static-ssh-agent-through-a-stable-socket]
-blocks: []
+blocks: [20260719-zetx-route-signatures-adaptively-with-failover]
 tags: []
 pr_mr_url: 
 pr_mr_status: 

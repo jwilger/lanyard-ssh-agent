@@ -1,6 +1,6 @@
 ---
 title: Route signatures adaptively with failover
-blocked_by: []
+blocked_by: [20260719-4rpk-aggregate-discovered-and-registered-agent-identities]
 blocks: []
 tags: []
 pr_mr_url: 
