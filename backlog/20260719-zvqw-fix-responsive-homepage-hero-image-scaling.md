@@ -13,6 +13,8 @@ pr_mr_status:
 
 ## Acceptance criteria
 
+- [ ] The homepage hero artwork preserves its intrinsic aspect ratio at every supported viewport width and never appears vertically stretched.
+
 ## Subtasks
 
 ## Notes / Log
