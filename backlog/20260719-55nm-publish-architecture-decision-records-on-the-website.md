@@ -19,6 +19,7 @@ Use the canonical Markdown files under docs/adr as the source of truth. The site
 
 - [ ] Every canonical docs/adr Markdown record is published at a stable website URL
 - [ ] An architecture index lists ADR number, title, and status and links to each record
+- [ ] Existing website references to ADRs link to the published pages
 
 ## Subtasks
 
