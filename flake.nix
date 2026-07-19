@@ -64,6 +64,7 @@
                 programs.lanyard-ssh-agent = {
                   enable = true;
                   package = testPackage;
+                  upstream = ''/home/lanyard-test/Agent 100% "socket"'';
                 };
               }
             ];
@@ -95,6 +96,16 @@
               assert defaultHomeConfiguration.config.programs.lanyard-ssh-agent.package == package;
               pkgs.runCommand "lanyard-home-manager-module" { } ''
                 test -x ${homeConfiguration.config.home.path}/bin/lanyard-ssh-agent
+                touch "$out"
+              '';
+            home-manager-systemd-service =
+              let
+                service = "${homeConfiguration.config.home-files}/.config/systemd/user/lanyard-ssh-agent.service";
+              in
+              pkgs.runCommand "lanyard-home-manager-systemd-service" { } ''
+                grep -F -- '"serve" "--upstream" "/home/lanyard-test/Agent 100%% \"socket\""' ${service}
+                grep -F -- "Restart=on-failure" ${service}
+                grep -F -- "WantedBy=default.target" ${service}
                 touch "$out"
               '';
           };
