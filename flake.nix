@@ -103,6 +103,17 @@
                 test -x ${homeConfiguration.config.home.path}/bin/lanyard-ssh-agent
                 touch "$out"
               '';
+            home-manager-ssh-integration =
+              let
+                sshConfig = "${homeConfiguration.config.home-files}/.ssh/config";
+              in
+              pkgs.runCommand "lanyard-home-manager-ssh-integration" { } ''
+                grep -F -- "Host *" ${sshConfig}
+                grep -F -- "IdentityAgent SSH_AUTH_SOCK" ${sshConfig}
+                touch "$out"
+              '';
+          }
+          // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
             home-manager-systemd-service =
               let
                 service = "${homeConfiguration.config.home-files}/.config/systemd/user/lanyard-ssh-agent.service";
@@ -142,15 +153,6 @@
                   test "$SSH_AUTH_SOCK" = "$XDG_RUNTIME_DIR/lanyard-ssh-agent/agent.sock"
                 '
                 tail -n 1 "$LANYARD_TEST_LOG" | grep -F -- "$TMPDIR/zsh-forwarded-agent.sock|register $TMPDIR/zsh-forwarded-agent.sock"
-                touch "$out"
-              '';
-            home-manager-ssh-integration =
-              let
-                sshConfig = "${homeConfiguration.config.home-files}/.ssh/config";
-              in
-              pkgs.runCommand "lanyard-home-manager-ssh-integration" { } ''
-                grep -F -- "Host *" ${sshConfig}
-                grep -F -- "IdentityAgent SSH_AUTH_SOCK" ${sshConfig}
                 touch "$out"
               '';
           };

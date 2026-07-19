@@ -8,10 +8,6 @@ import DocLayout from "../../layouts/DocLayout.astro";
   description="Let the module own the service, stable environment, incoming-agent registration, and SSH client setting."
 >
   <div class="prose">
-    <div class="warning note">
-      <strong>PLANNED FOR v0.1</strong>The flake package and app are available
-      today; the Home Manager module shown here is not yet exported from main.
-    </div>
     <h2>
       Flake input
     </h2><pre><code>inputs.lanyard.url = "github:jwilger/lanyard-ssh-agent";</code></pre>
@@ -22,19 +18,33 @@ import DocLayout from "../../layouts/DocLayout.astro";
 
   programs.lanyard-ssh-agent = {
     enable = true;
-    staticAgents = [ "$HOME/.1password/agent.sock" ];
+    upstream = "/home/me/.1password/agent.sock";
   };
+
+  # Enable whichever shell Home Manager manages for you.
+  programs.zsh.enable = true;
 }`}</code></pre>
     <p>
-      The module installs a systemd user service, configures the stable socket,
-      and provides shell integration that registers an incoming forwarded socket <em
-        >before</em
-      > replacing <code>SSH_AUTH_SOCK</code>.
+      On Linux, the module installs a systemd user service and adds integration
+      to Bash or Zsh when that shell is enabled through Home Manager. The hook
+      registers an incoming forwarded socket <em>before</em> replacing <code
+        >SSH_AUTH_SOCK</code
+      >. The daemon owns both stable sockets; registration failure never blocks
+      shell startup.
+    </p>
+    <div class="warning note">
+      <strong>USE AN ABSOLUTE UPSTREAM PATH</strong>systemd does not expand
+      <code>$HOME</code> in <code>ExecStart</code>. The default is your Home
+      Manager home directory plus <code>/.1password/agent.sock</code>.
+    </div>
+    <p>
+      Apple Silicon Darwin package and module outputs remain available, but the
+      module does not install a launchd service or Linux/XDG shell integration
+      there.
     </p>
     <h2>
       Manual SSH configuration
-    </h2><pre><code>programs.ssh.matchBlocks."*".identityAgent =
-  "$XDG_RUNTIME_DIR/lanyard-ssh-agent/agent.sock";</code></pre>
+    </h2><pre><code>programs.ssh.settings."*".IdentityAgent = "SSH_AUTH_SOCK";</code></pre>
     <div class="warning note">
       <strong>ORDER MATTERS</strong>If your shell overwrites <code
         >SSH_AUTH_SOCK</code

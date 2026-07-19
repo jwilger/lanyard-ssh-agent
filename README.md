@@ -29,4 +29,9 @@ ordered source, path, and current reachability of every candidate. Use
 
 Documentation: <https://jwilger.github.io/lanyard-ssh-agent/>
 
+Home Manager users can import `homeManagerModules.default`. On Linux, enabling
+`programs.lanyard-ssh-agent` installs the package and systemd user service,
+adds forwarded-agent registration to Bash or Zsh when the corresponding shell
+is managed by Home Manager, and points OpenSSH at `SSH_AUTH_SOCK`.
+
 Licensed under either Apache-2.0 or MIT, at your option.
