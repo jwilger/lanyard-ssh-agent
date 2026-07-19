@@ -15,6 +15,8 @@ Automate versioning, signed release artifacts, crates.io publication, and Pages 
 
 ## Acceptance criteria
 
+- [ ] release-plz and the pinned reusable workflow drive releases from main
+
 ## Subtasks
 
 ## Notes / Log
