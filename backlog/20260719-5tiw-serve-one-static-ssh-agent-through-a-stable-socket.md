@@ -15,6 +15,8 @@ Implement the smallest protocol-aware proxy from one configured upstream agent t
 
 ## Acceptance criteria
 
+- [ ] The daemon serves the documented stable socket
+
 ## Subtasks
 
 ## Notes / Log
