@@ -20,6 +20,7 @@ Use the worktrees plugin's project-specific setup. Integrate the confirmed comma
 - [ ] Bootstrap and teardown scripts create and remove isolated ticket worktrees under the documented checkout root
 - [ ] The existing justfile exposes confirmed worktree lifecycle commands
 - [ ] Pre-commit and pre-push guards reject operations from the primary checkout while permitting worktrees
+- [ ] Rust/Nix and Astro/npm caches are warmed safely for new worktrees without copying secrets
 
 ## Subtasks
 
