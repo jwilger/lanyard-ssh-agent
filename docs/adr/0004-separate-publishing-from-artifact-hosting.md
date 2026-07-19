@@ -28,9 +28,12 @@ The release-plz workflow is consumed from an immutable, signed revision of
 pinned to full commit SHAs. Pages uses a dedicated least-privilege workflow
 and the `github-pages` deployment environment.
 
-The release-plz caller remains disabled until the reusable workflow also pins
-its nested actions. Pinning only the outer workflow does not make mutable
-nested action tags safe in jobs that handle publishing credentials.
+The release-plz caller is pinned to shared-workflow revision
+`017ca09a54090c441a12a0234e7bd0f96d485b8f`. That revision pins every nested
+action to a full commit SHA and enforces the invariant in its own CI, so the
+caller runs on every push to `main` without a separate feature gate. Pinning
+only the outer workflow would not make mutable nested action tags safe in jobs
+that handle publishing credentials.
 
 ## Consequences
 

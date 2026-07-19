@@ -16,7 +16,8 @@ same release.
 ## Repository setup
 
 The `Release` workflow calls the signed, immutable
-`jwilger/gha-workflows` revision recorded in
+`jwilger/gha-workflows` revision
+`017ca09a54090c441a12a0234e7bd0f96d485b8f`, recorded in
 `.github/workflows/release-plz.yml`. Configure these repository resources:
 
 - secret `OP_SERVICE_ACCOUNT_TOKEN`, with access to the shared `Github Secrets`
@@ -30,21 +31,13 @@ The shared workflow also retrieves its GitHub automation token and SSH signing
 key from 1Password. Branch and tag rules must continue to require signed
 history and disallow force pushes.
 
-### Blocked release trigger
+### Release trigger
 
-The release job is intentionally fail-closed unless the repository variable
-`RELEASE_WORKFLOW_NESTED_ACTIONS_PINNED` is exactly `true`. Do not create that
-variable yet. The pinned shared workflow revision uses mutable tags for nested
-actions in jobs that handle the 1Password service token, GitHub automation
-token, signing key, and crates.io token. No historical revision of that
-reusable workflow pins its nested actions.
-
-Before enabling releases, update `jwilger/gha-workflows` so every nested action
-uses a full immutable commit SHA, pin `.github/workflows/release-plz.yml` to
-that signed revision, and only then set the repository variable to `true`. Do
-not enable the job by changing permissions alone: mutable steps can still read
-or exfiltrate secrets passed explicitly to them, and checkout currently
-persists the release token.
+Every push to `main` invokes the reusable workflow. Its credential-bearing
+nested actions are pinned to full immutable commit SHAs and a shared-workflow
+CI policy rejects mutable references. The release-PR and publish jobs retrieve
+only their required credentials from 1Password. A run with no release work is
+a successful no-op.
 
 ## Pages
 
