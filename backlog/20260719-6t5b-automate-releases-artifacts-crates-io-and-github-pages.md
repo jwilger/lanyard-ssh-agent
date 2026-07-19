@@ -9,6 +9,8 @@ pr_mr_status:
 
 ## Summary
 
+Automate versioning, signed release artifacts, crates.io publication, and Pages deployment.
+
 ## Context / Why
 
 ## Acceptance criteria
