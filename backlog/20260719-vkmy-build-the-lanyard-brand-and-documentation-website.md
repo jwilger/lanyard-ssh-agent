@@ -15,6 +15,8 @@ Create a distinctive Astro GitHub Pages site and complete user/developer documen
 
 ## Acceptance criteria
 
+- [ ] The site follows the industrial field-manual and transit-map art direction without card-grid clichés
+
 ## Subtasks
 
 ## Notes / Log
