@@ -18,7 +18,7 @@ Exercise real OpenSSH authentication and Git SSH commit signing against the prox
 
 ## Acceptance criteria
 
-- [ ] Black-box tests cover SSH authentication through Lanyard
+- [x] Black-box tests cover SSH authentication through Lanyard
 - [ ] Black-box tests create and verify an SSH-signed Git commit
 - [ ] OpenSSH query and session-bind extensions are handled safely
 - [x] Architecture and security documentation match observed behavior
