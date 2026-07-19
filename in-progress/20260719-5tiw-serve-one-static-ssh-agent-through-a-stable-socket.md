@@ -18,7 +18,7 @@ Implement the smallest protocol-aware proxy from one configured upstream agent t
 
 ## Acceptance criteria
 
-- [ ] The daemon serves the documented stable socket
+- [x] The daemon serves the documented stable socket
 - [ ] Identity listing and signing work through one static upstream
 - [ ] Unsupported mutation and lock operations fail closed
 - [ ] Protocol size and operation time limits are enforced
