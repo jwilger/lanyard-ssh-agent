@@ -9,6 +9,8 @@ pr_mr_status:
 
 ## Summary
 
+Implement the smallest protocol-aware proxy from one configured upstream agent to Lanyard's stable Unix socket.
+
 ## Context / Why
 
 ## Acceptance criteria
