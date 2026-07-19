@@ -21,7 +21,7 @@ Exercise real OpenSSH authentication and Git SSH commit signing against the prox
 - [ ] Black-box tests cover SSH authentication through Lanyard
 - [ ] Black-box tests create and verify an SSH-signed Git commit
 - [ ] OpenSSH query and session-bind extensions are handled safely
-- [ ] Architecture and security documentation match observed behavior
+- [x] Architecture and security documentation match observed behavior
 
 ## Subtasks
 
