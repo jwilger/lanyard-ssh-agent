@@ -1,0 +1,4 @@
+# The binary is the effectful process/signal/filesystem shell and is exercised
+# by black-box acceptance tests. Mutation coverage targets the functional and
+# protocol core in the library.
+exclude_globs = ["src/main.rs"]

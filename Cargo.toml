@@ -2,7 +2,7 @@
 name = "lanyard-ssh-agent"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.89"
 description = "A resilient switching proxy for SSH agents"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/jwilger/lanyard-ssh-agent"
@@ -15,11 +15,13 @@ clap = { version = "4.5", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
-tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal"] }
+tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "time"] }
 
 [dev-dependencies]
 assert_cmd = "2"
+mutants = "0.0.4"
 predicates = "3"
+tempfile = "3.27.0"
 
 [lints.rust]
 unsafe_code = "forbid"
@@ -42,6 +44,9 @@ single_call_fn = "allow"
 std_instead_of_core = "allow"
 tests_outside_test_module = "allow"
 arbitrary_source_item_ordering = "allow"
+big_endian_bytes = "allow"
+integer_division_remainder_used = "allow"
+panic_in_result_fn = "allow"
 print_stdout = "allow"
 unwrap_used = "deny"
 expect_used = "deny"
