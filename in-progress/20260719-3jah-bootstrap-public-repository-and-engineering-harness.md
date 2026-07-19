@@ -19,7 +19,7 @@ Create the reproducible Rust, Nix, CI, policy, and architecture foundation for a
 ## Acceptance criteria
 
 - [x] A pinned flake dev shell supplies the stable Rust toolchain and project tools
-- [ ] Formatting, strict linting, unit/acceptance tests, mutation testing, and CI share one local gate
+- [x] Formatting, strict linting, unit/acceptance tests, mutation testing, and CI share one local gate
 - [ ] Repository policy, licenses, contribution guide, and initial ADRs are documented
 
 ## Subtasks
