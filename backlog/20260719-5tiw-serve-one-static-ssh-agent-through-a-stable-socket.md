@@ -1,6 +1,6 @@
 ---
 title: Serve one static SSH agent through a stable socket
-blocked_by: []
+blocked_by: [20260719-3jah-bootstrap-public-repository-and-engineering-harness]
 blocks: []
 tags: []
 pr_mr_url: 

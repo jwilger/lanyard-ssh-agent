@@ -1,7 +1,7 @@
 ---
 title: Bootstrap public repository and engineering harness
 blocked_by: []
-blocks: []
+blocks: [20260719-5tiw-serve-one-static-ssh-agent-through-a-stable-socket]
 tags: []
 pr_mr_url: 
 pr_mr_status: 
