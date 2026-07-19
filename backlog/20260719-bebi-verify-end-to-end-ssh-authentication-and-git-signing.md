@@ -9,6 +9,8 @@ pr_mr_status:
 
 ## Summary
 
+Exercise real OpenSSH authentication and Git SSH commit signing against the proxy.
+
 ## Context / Why
 
 ## Acceptance criteria
