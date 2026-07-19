@@ -1,6 +1,6 @@
 ---
 title: Adopt Lanyard on gregor
-blocked_by: [20260719-a5jv-package-the-daemon-with-home-manager-and-systemd]
+blocked_by: [20260719-6t5b-automate-releases-artifacts-crates-io-and-github-pages, 20260719-a5jv-package-the-daemon-with-home-manager-and-systemd]
 blocks: []
 tags: []
 pr_mr_url: 
