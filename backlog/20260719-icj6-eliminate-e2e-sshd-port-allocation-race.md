@@ -17,6 +17,8 @@ Final-review finding production-risk-footguns-002 from 20260719-bebi.
 
 ## Acceptance criteria
 
+- [ ] The E2E does not rely on an unreserved bind-to-zero port remaining free until sshd starts
+
 ## Subtasks
 
 ## Notes / Log
