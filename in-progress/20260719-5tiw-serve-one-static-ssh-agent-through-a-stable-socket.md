@@ -21,7 +21,7 @@ Implement the smallest protocol-aware proxy from one configured upstream agent t
 - [x] The daemon serves the documented stable socket
 - [x] Identity listing and signing work through one static upstream
 - [x] Unsupported mutation and lock operations fail closed
-- [ ] Protocol size and operation time limits are enforced
+- [x] Protocol size and operation time limits are enforced
 
 ## Subtasks
 
