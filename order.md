@@ -4,3 +4,4 @@
 20260719-7kjj-adopt-lanyard-on-gregor
 20260719-9nuy-make-repository-worktree-ready
 20260719-55nm-publish-architecture-decision-records-on-the-website
+20260719-icj6-eliminate-e2e-sshd-port-allocation-race
