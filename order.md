@@ -6,3 +6,4 @@
 20260719-6t5b-automate-releases-artifacts-crates-io-and-github-pages
 20260719-7kjj-adopt-lanyard-on-gregor
 20260719-9nuy-make-repository-worktree-ready
+20260719-55nm-publish-architecture-decision-records-on-the-website
