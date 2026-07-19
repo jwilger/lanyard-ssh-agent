@@ -6,15 +6,16 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use lanyard_ssh_agent::backend::{Backend, Registry, Source};
-use lanyard_ssh_agent::proxy::{Config, serve};
+use lanyard_ssh_agent::proxy::{Config, Timeouts, serve};
 use tokio::fs;
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 use tokio::net::{UnixListener, UnixStream};
 use tokio::task::JoinHandle;
-use tokio::time::timeout;
+use tokio::time::{sleep, timeout};
 
 const REQUEST_IDENTITIES: &[u8] = &[11];
 const SIGN_REQUEST: &[u8] = &[13, 0, 0, 0, 1, b'k', 0, 0, 0, 0, 0, 0, 0, 0];
+const OTHER_KEY_SIGN_REQUEST: &[u8] = &[13, 0, 0, 0, 1, b'q', 0, 0, 0, 0, 0, 0, 0, 0];
 const SESSION_BIND: &[u8] = &[
     27, 0, 0, 0, 24, b's', b'e', b's', b's', b'i', b'o', b'n', b'-', b'b', b'i', b'n', b'd', b'@',
     b'o', b'p', b'e', b'n', b's', b's', b'h', b'.', b'c', b'o', b'm', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -44,6 +45,79 @@ fn registry_prefers_recent_registrations_and_reserves_the_fallback() {
     assert_eq!(
         candidates.last().map(Backend::path),
         Some(PathBuf::from("/fallback").as_path())
+    );
+}
+
+#[test]
+fn signer_promotion_changes_only_signing_order() {
+    let fallback = PathBuf::from("/fallback");
+    let first = PathBuf::from("/registered/first");
+    let second = PathBuf::from("/registered/second");
+    let mut registry = Registry::new(fallback.clone());
+    registry.register(first.clone());
+    registry.register(second.clone());
+
+    registry.promote_signer(b"key-a".to_vec(), fallback.clone());
+
+    assert_eq!(
+        registry
+            .candidates(Vec::new())
+            .iter()
+            .map(Backend::path)
+            .collect::<Vec<_>>(),
+        [&second, &first, &fallback]
+    );
+    assert_eq!(
+        registry
+            .signing_candidates(Vec::new(), b"key-a")
+            .iter()
+            .map(Backend::path)
+            .collect::<Vec<_>>(),
+        [&fallback, &second, &first]
+    );
+    assert_eq!(
+        registry
+            .signing_candidates(Vec::new(), b"key-b")
+            .iter()
+            .map(|backend| backend.path().to_path_buf())
+            .collect::<Vec<_>>(),
+        vec![second, first, fallback]
+    );
+}
+
+#[test]
+fn refreshing_an_affinity_does_not_consume_another_cache_slot() {
+    let fallback = PathBuf::from("/fallback");
+    let registered = PathBuf::from("/registered");
+    let mut registry = Registry::new(fallback.clone());
+    registry.register(registered.clone());
+    registry.promote_signer(b"oldest".to_vec(), fallback.clone());
+    for key in [
+        "00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14",
+        "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29",
+        "30",
+    ] {
+        registry.promote_signer(key.as_bytes().to_vec(), registered.clone());
+    }
+
+    registry.promote_signer(b"00".to_vec(), registered.clone());
+
+    assert_eq!(
+        registry
+            .signing_candidates(Vec::new(), b"oldest")
+            .first()
+            .map(Backend::path),
+        Some(fallback.as_path())
+    );
+
+    registry.promote_signer(b"31".to_vec(), registered.clone());
+
+    assert_eq!(
+        registry
+            .signing_candidates(Vec::new(), b"oldest")
+            .first()
+            .map(Backend::path),
+        Some(registered.as_path())
     );
 }
 
@@ -102,11 +176,15 @@ async fn returns_a_deduplicated_union_from_registered_discovered_and_fallback_ag
 }
 
 #[tokio::test]
-async fn signing_tries_candidates_in_order_until_one_accepts() -> Result<(), Box<dyn Error>> {
+async fn signing_prefers_a_discovered_forwarded_agent_before_fallback() -> Result<(), Box<dyn Error>>
+{
     let directory = tempfile::tempdir()?;
-    let forwarded_path = directory.path().join("forwarded.sock");
+    let discovery_root = directory.path().join("discovery");
+    let forwarded_directory = discovery_root.join("ssh-forwarded");
+    let forwarded_path = forwarded_directory.join("agent.42");
     let fallback_path = directory.path().join("fallback.sock");
     let lanyard_path = directory.path().join("lanyard.sock");
+    fs::create_dir_all(&forwarded_directory).await?;
     let forwarded_listener = UnixListener::bind(&forwarded_path)?;
     let fallback_listener = UnixListener::bind(&fallback_path)?;
     let forwarded = tokio::spawn(async move {
@@ -122,7 +200,7 @@ async fn signing_tries_candidates_in_order_until_one_accepts() -> Result<(), Box
     let listener = UnixListener::bind(&lanyard_path)?;
     let proxy = tokio::spawn(serve(
         listener,
-        Config::new(fallback_path).with_registered(vec![forwarded_path]),
+        Config::new(fallback_path).with_discovery_roots(vec![discovery_root]),
     ));
     let mut client = UnixStream::connect(&lanyard_path).await?;
 
@@ -131,6 +209,173 @@ async fn signing_tries_candidates_in_order_until_one_accepts() -> Result<(), Box
         read_frame(&mut client).await?,
         [14, 0, 0, 0, 3, b's', b'i', b'g']
     );
+
+    timeout(Duration::from_secs(1), forwarded).await???;
+    timeout(Duration::from_secs(1), fallback).await???;
+    proxy.abort();
+    Ok(())
+}
+
+#[tokio::test]
+async fn signing_advances_after_a_candidate_response_timeout() -> Result<(), Box<dyn Error>> {
+    let directory = tempfile::tempdir()?;
+    let stalled_path = directory.path().join("stalled.sock");
+    let fallback_path = directory.path().join("fallback.sock");
+    let lanyard_path = directory.path().join("lanyard.sock");
+    let stalled_listener = UnixListener::bind(&stalled_path)?;
+    let fallback_listener = UnixListener::bind(&fallback_path)?;
+    let stalled = tokio::spawn(async move {
+        let (mut stream, _) = stalled_listener.accept().await?;
+        assert_eq!(read_frame(&mut stream).await?, SIGN_REQUEST);
+        sleep(Duration::from_millis(100)).await;
+        Ok::<(), io::Error>(())
+    });
+    let fallback = tokio::spawn(async move {
+        let (mut stream, _) = fallback_listener.accept().await?;
+        assert_eq!(read_frame(&mut stream).await?, SIGN_REQUEST);
+        write_frame(&mut stream, &[14, 0, 0, 0, 3, b's', b'i', b'g']).await
+    });
+    let listener = UnixListener::bind(&lanyard_path)?;
+    let proxy = tokio::spawn(serve(
+        listener,
+        Config::new(fallback_path)
+            .with_registered(vec![stalled_path])
+            .with_timeouts(Timeouts::new(
+                Duration::from_secs(1),
+                Duration::from_secs(1),
+                Duration::from_millis(20),
+            )),
+    ));
+    let mut client = UnixStream::connect(&lanyard_path).await?;
+
+    write_frame(&mut client, SIGN_REQUEST).await?;
+    assert_eq!(
+        read_frame(&mut client).await?,
+        [14, 0, 0, 0, 3, b's', b'i', b'g']
+    );
+
+    timeout(Duration::from_secs(1), stalled).await???;
+    timeout(Duration::from_secs(1), fallback).await???;
+    proxy.abort();
+    Ok(())
+}
+
+#[tokio::test]
+async fn successful_signing_promotes_that_backend_for_later_signatures()
+-> Result<(), Box<dyn Error>> {
+    let directory = tempfile::tempdir()?;
+    let forwarded_path = directory.path().join("forwarded.sock");
+    let fallback_path = directory.path().join("fallback.sock");
+    let lanyard_path = directory.path().join("lanyard.sock");
+    let forwarded_listener = UnixListener::bind(&forwarded_path)?;
+    let fallback_listener = UnixListener::bind(&fallback_path)?;
+    let forwarded = tokio::spawn(async move {
+        let (mut stream, _) = forwarded_listener.accept().await?;
+        assert_eq!(read_frame(&mut stream).await?, SIGN_REQUEST);
+        write_frame(&mut stream, &[5]).await?;
+        assert!(
+            timeout(Duration::from_millis(200), forwarded_listener.accept())
+                .await
+                .is_err(),
+            "the failed first candidate should be bypassed after signer promotion"
+        );
+        Ok::<(), io::Error>(())
+    });
+    let fallback = tokio::spawn(async move {
+        for () in [(), ()] {
+            let (mut stream, _) = fallback_listener.accept().await?;
+            assert_eq!(read_frame(&mut stream).await?, SIGN_REQUEST);
+            write_frame(&mut stream, &[14, 0, 0, 0, 3, b's', b'i', b'g']).await?;
+        }
+        Ok::<(), io::Error>(())
+    });
+    let listener = UnixListener::bind(&lanyard_path)?;
+    let proxy = tokio::spawn(serve(
+        listener,
+        Config::new(fallback_path).with_registered(vec![forwarded_path]),
+    ));
+    let mut client = UnixStream::connect(&lanyard_path).await?;
+
+    for () in [(), ()] {
+        write_frame(&mut client, SIGN_REQUEST).await?;
+        assert_eq!(
+            read_frame(&mut client).await?,
+            [14, 0, 0, 0, 3, b's', b'i', b'g']
+        );
+    }
+
+    timeout(Duration::from_secs(1), forwarded).await???;
+    timeout(Duration::from_secs(1), fallback).await???;
+    proxy.abort();
+    Ok(())
+}
+
+#[tokio::test]
+async fn signer_promotion_is_scoped_to_the_requested_key() -> Result<(), Box<dyn Error>> {
+    let directory = tempfile::tempdir()?;
+    let forwarded_path = directory.path().join("forwarded.sock");
+    let fallback_path = directory.path().join("fallback.sock");
+    let lanyard_path = directory.path().join("lanyard.sock");
+    let forwarded_listener = UnixListener::bind(&forwarded_path)?;
+    let fallback_listener = UnixListener::bind(&fallback_path)?;
+    let forwarded = tokio::spawn(async move {
+        let (mut first, _) = forwarded_listener.accept().await?;
+        assert_eq!(read_frame(&mut first).await?, SIGN_REQUEST);
+        write_frame(&mut first, &[5]).await?;
+        let (mut second, _) = forwarded_listener.accept().await?;
+        assert_eq!(read_frame(&mut second).await?, OTHER_KEY_SIGN_REQUEST);
+        write_frame(&mut second, &[14, 0, 0, 0, 3, b's', b'i', b'g']).await
+    });
+    let fallback = tokio::spawn(async move {
+        let (mut stream, _) = fallback_listener.accept().await?;
+        assert_eq!(read_frame(&mut stream).await?, SIGN_REQUEST);
+        write_frame(&mut stream, &[14, 0, 0, 0, 3, b's', b'i', b'g']).await?;
+        assert!(
+            timeout(Duration::from_millis(200), fallback_listener.accept())
+                .await
+                .is_err(),
+            "a signer promoted for one key must not be tried first for another key"
+        );
+        Ok::<(), io::Error>(())
+    });
+    let listener = UnixListener::bind(&lanyard_path)?;
+    let proxy = tokio::spawn(serve(
+        listener,
+        Config::new(fallback_path).with_registered(vec![forwarded_path]),
+    ));
+    let mut client = UnixStream::connect(&lanyard_path).await?;
+
+    for request in [SIGN_REQUEST, OTHER_KEY_SIGN_REQUEST] {
+        write_frame(&mut client, request).await?;
+        assert_eq!(
+            read_frame(&mut client).await?,
+            [14, 0, 0, 0, 3, b's', b'i', b'g']
+        );
+    }
+
+    timeout(Duration::from_secs(1), forwarded).await???;
+    timeout(Duration::from_secs(1), fallback).await???;
+    proxy.abort();
+    Ok(())
+}
+
+#[tokio::test]
+async fn signing_fails_closed_when_every_candidate_rejects() -> Result<(), Box<dyn Error>> {
+    let directory = tempfile::tempdir()?;
+    let forwarded_path = directory.path().join("forwarded.sock");
+    let fallback_path = directory.path().join("fallback.sock");
+    let lanyard_path = directory.path().join("lanyard.sock");
+    let forwarded = fake_request(UnixListener::bind(&forwarded_path)?, SIGN_REQUEST, vec![5]);
+    let fallback = fake_request(UnixListener::bind(&fallback_path)?, SIGN_REQUEST, vec![5]);
+    let listener = UnixListener::bind(&lanyard_path)?;
+    let proxy = tokio::spawn(serve(
+        listener,
+        Config::new(fallback_path).with_registered(vec![forwarded_path]),
+    ));
+    let mut client = UnixStream::connect(&lanyard_path).await?;
+
+    write_frame(&mut client, SIGN_REQUEST).await?;
+    assert_eq!(read_frame(&mut client).await?, [5]);
 
     timeout(Duration::from_secs(1), forwarded).await???;
     timeout(Duration::from_secs(1), fallback).await???;

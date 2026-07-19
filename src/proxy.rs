@@ -224,7 +224,13 @@ async fn connect_and_forward_candidate(
     response_timeout: Duration,
 ) -> io::Result<Vec<u8>> {
     let discovered = discover_agent_sockets(&config.discovery_roots).await;
-    for backend in config.registry.candidates(discovered) {
+    let signing_key = signing_key_blob(request);
+    let candidates = if let Some(key) = signing_key.as_deref() {
+        config.registry.signing_candidates(discovered, key)
+    } else {
+        config.registry.candidates(discovered)
+    };
+    for backend in candidates {
         let Ok(mut stream) = connect_bound(config, backend.path(), session_bindings).await else {
             continue;
         };
@@ -236,7 +242,14 @@ async fn connect_and_forward_candidate(
         )
         .await
         {
-            Ok(response) if response_accepts_request(request, &response) => return Ok(response),
+            Ok(response) if response_accepts_request(request, &response) => {
+                if let Some(key) = signing_key.as_ref() {
+                    config
+                        .registry
+                        .promote_signer(key.clone(), backend.path().to_path_buf());
+                }
+                return Ok(response);
+            }
             Ok(response)
                 if is_session_bind(request)
                     && response != FAILURE
@@ -602,6 +615,14 @@ fn valid_sign_request(request: &[u8]) -> bool {
         && cursor.read_string().is_ok()
         && cursor.read_u32().is_ok()
         && cursor.remaining().is_empty()
+}
+
+fn signing_key_blob(request: &[u8]) -> Option<Vec<u8>> {
+    let (&message_type, payload) = request.split_first()?;
+    if message_type != SIGN_REQUEST {
+        return None;
+    }
+    Cursor::new(payload).read_string().ok()
 }
 
 fn valid_supported_extension_request(request: &[u8]) -> bool {

@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// Maximum number of upstream candidates considered for one operation.
 pub const MAXIMUM_CANDIDATES: usize = 32;
+const MAXIMUM_SIGNER_AFFINITIES: usize = 32;
 
 /// How an upstream agent entered the candidate set.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -57,6 +58,7 @@ impl Backend {
 pub struct Registry {
     fallback: PathBuf,
     registered: Vec<PathBuf>,
+    preferred_signers: Vec<(Vec<u8>, PathBuf)>,
 }
 
 impl Registry {
@@ -67,6 +69,7 @@ impl Registry {
         Self {
             fallback,
             registered: Vec::new(),
+            preferred_signers: Vec::new(),
         }
     }
 
@@ -114,6 +117,30 @@ impl Registry {
         candidates.push(Backend::new(self.fallback.clone(), Source::Fallback));
         candidates
     }
+
+    /// Produces candidates with the most recently successful signer first.
+    #[must_use]
+    #[inline]
+    pub fn signing_candidates(&self, discovered: Vec<PathBuf>, key: &[u8]) -> Vec<Backend> {
+        let mut candidates = self.candidates(discovered);
+        if let Some(preference) = self
+            .preferred_signers
+            .iter()
+            .find(|preference| preference.0 == key)
+        {
+            candidates.sort_by_key(|candidate| candidate.path() != preference.1);
+        }
+        candidates
+    }
+
+    /// Remembers the most recently successful signing backend for one key.
+    #[inline]
+    pub fn promote_signer(&mut self, key: Vec<u8>, path: PathBuf) {
+        self.preferred_signers
+            .retain(|preference| preference.0 != key);
+        self.preferred_signers.insert(0, (key, path));
+        self.preferred_signers.truncate(MAXIMUM_SIGNER_AFFINITIES);
+    }
 }
 
 /// Thread-safe handle shared by agent and control listeners.
@@ -146,6 +173,19 @@ impl SharedRegistry {
     #[inline]
     pub fn candidates(&self, discovered: Vec<PathBuf>) -> Vec<Backend> {
         read_lock(&self.0).candidates(discovered)
+    }
+
+    /// Returns a signing-specific snapshot with the last successful signer first.
+    #[must_use]
+    #[inline]
+    pub fn signing_candidates(&self, discovered: Vec<PathBuf>, key: &[u8]) -> Vec<Backend> {
+        read_lock(&self.0).signing_candidates(discovered, key)
+    }
+
+    /// Promotes a successful signing backend for later requests using the same key.
+    #[inline]
+    pub fn promote_signer(&self, key: Vec<u8>, path: PathBuf) {
+        write_lock(&self.0).promote_signer(key, path);
     }
 }
 
