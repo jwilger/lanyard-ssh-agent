@@ -9,7 +9,11 @@ pr_mr_status:
 
 ## Summary
 
+Make the real-agent recording proxy own, join, and surface failures from every per-connection worker.
+
 ## Context / Why
+
+Final-review finding architecture-maintainability-001 from 20260719-bebi.
 
 ## Acceptance criteria
 
