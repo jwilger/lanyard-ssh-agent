@@ -17,6 +17,8 @@ Discovered while building the Home Manager module check in an optimized Nix buil
 
 ## Acceptance criteria
 
+- [ ] SIGTERM handling is installed before agent.sock or control.sock becomes externally connectable
+
 ## Subtasks
 
 ## Notes / Log
