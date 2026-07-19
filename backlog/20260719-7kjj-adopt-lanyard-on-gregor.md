@@ -15,6 +15,8 @@ Integrate the released Home Manager module into gregor's separate NixOS configur
 
 ## Acceptance criteria
 
+- [ ] The existing unrelated NixOS worktree change is preserved
+
 ## Subtasks
 
 ## Notes / Log
