@@ -134,6 +134,15 @@
                 test "$SSH_AUTH_SOCK" = "$TMPDIR/runtime/lanyard-ssh-agent/agent.sock"
                 touch "$out"
               '';
+            home-manager-ssh-integration =
+              let
+                sshConfig = "${homeConfiguration.config.home-files}/.ssh/config";
+              in
+              pkgs.runCommand "lanyard-home-manager-ssh-integration" { } ''
+                grep -F -- "Host *" ${sshConfig}
+                grep -F -- "IdentityAgent SSH_AUTH_SOCK" ${sshConfig}
+                touch "$out"
+              '';
           };
           devShells.default = pkgs.mkShell {
             packages = with pkgs; [

@@ -45,6 +45,12 @@ in
 
     programs.bash.profileExtra = lib.mkIf pkgs.stdenv.isLinux (lib.mkOrder 900 bashIntegration);
 
+    programs.ssh = {
+      enable = true;
+      enableDefaultConfig = lib.mkDefault false;
+      settings."*".IdentityAgent = lib.mkDefault "SSH_AUTH_SOCK";
+    };
+
     systemd.user.services.lanyard-ssh-agent = lib.mkIf pkgs.stdenv.isLinux {
       Install.WantedBy = [ "default.target" ];
       Unit.Description = "Lanyard SSH agent switching proxy";
