@@ -22,6 +22,7 @@ Use the worktrees plugin's project-specific setup. Integrate the confirmed comma
 - [ ] Pre-commit and pre-push guards reject operations from the primary checkout while permitting worktrees
 - [ ] Rust/Nix and Astro/npm caches are warmed safely for new worktrees without copying secrets
 - [ ] Bats tests cover bootstrap, teardown, and guard behavior
+- [ ] AGENTS.md documents the required ticket-worktree workflow
 
 ## Subtasks
 
