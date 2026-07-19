@@ -246,17 +246,20 @@ fn dist_builds_checksummed_linux_archives() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn release_entrypoint_pins_shared_automation_and_fails_closed() -> Result<(), Box<dyn Error>> {
+fn release_entrypoint_enables_pinned_shared_automation() -> Result<(), Box<dyn Error>> {
     let release_plz = workflow(".github/workflows/release-plz.yml")?;
     let dist = workflow(".github/workflows/release.yml")?;
     let mut conditions = Vec::new();
+    let mut shared_workflows = Vec::new();
     values_for_key(&release_plz, "if", &mut conditions);
+    values_for_key(&release_plz, "uses", &mut shared_workflows);
 
     assert_immutable_action_references(&release_plz)?;
     assert_immutable_action_references(&dist)?;
+    assert!(conditions.is_empty());
     assert_eq!(
-        conditions,
-        ["${{ vars.RELEASE_WORKFLOW_NESTED_ACTIONS_PINNED == 'true' }}"]
+        shared_workflows,
+        ["jwilger/gha-workflows/.github/workflows/rust-release-plz.yml@ac22efd2f7744a9c80f995549193716e751c77a3"]
     );
     Ok(())
 }
