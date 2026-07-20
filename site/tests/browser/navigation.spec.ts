@@ -31,6 +31,33 @@ test("the homepage does not overflow the viewport horizontally", async ({
   expect(widths.content).toBeLessThanOrEqual(widths.viewport);
 });
 
+test("the architecture diagram keeps destination labels distinct", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto("docs/architecture/");
+
+  const labels = page.locator(".route-diagram .destinations text");
+  const gaps = await labels.evaluateAll((elements) => {
+    if (elements.length !== 3) return [Number.NEGATIVE_INFINITY];
+
+    const pairs = elements.slice(0, -1).map((element, index) => ({
+      current: elements[index + 1],
+      previous: element,
+    }));
+
+    return pairs.flatMap(({ current, previous }) => {
+      if (current === undefined) return [];
+      return [
+        current.getBoundingClientRect().left -
+          previous.getBoundingClientRect().right,
+      ];
+    });
+  });
+
+  expect(Math.min(...gaps)).toBeGreaterThanOrEqual(8);
+});
+
 test("the manual is navigable and has no detectable accessibility violations", async ({
   page,
 }) => {
