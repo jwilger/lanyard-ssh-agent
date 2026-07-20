@@ -20,6 +20,7 @@ Successful changes on main currently do not reliably produce a release. The conf
 - [ ] A failed verification run creates no release commit, tag, draft GitHub release, crates.io publication, or public GitHub release.
 - [ ] A successful eligible revision preserves the signed release commit and tag, both supported Linux archives and checksums, draft staging, crates.io publication, and public GitHub release as the final irreversible step.
 - [ ] A verification run caused by a release-preparation commit is idempotent and cannot publish a duplicate release.
+- [ ] Automated tests cover release triggering, verification gating, natural version calculation, and removal of the unsupported action-wrapper command.
 
 ## Subtasks
 
