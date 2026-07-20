@@ -45,9 +45,18 @@ just worktree-create 20260720-example
 cd .worktrees/20260720-example
 ```
 
-Run `just check` before publishing the reviewed commit. After the commit has
-been integrated into `main`, return to the primary checkout and remove the
-linked worktree:
+Run `just check` before publishing the reviewed commit. Never publish the local
+ticket branch. Verify that remote `main` is an ancestor of the reviewed commit,
+then integrate that exact commit directly:
+
+```sh
+git fetch origin main
+git merge-base --is-ancestor origin/main HEAD
+git push origin HEAD:main
+```
+
+After the commit has been integrated, return to the primary checkout and remove
+the linked worktree:
 
 ```sh
 just worktree-remove 20260720-example

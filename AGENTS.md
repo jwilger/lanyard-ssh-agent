@@ -20,8 +20,18 @@ never copied. The hook does not copy `.env`, Cargo credentials, or other
 secrets. Each linked checkout receives an ignored `.env.worktree` with an
 isolated site test port; direnv loads it automatically.
 
-Run the relevant checks, commit, and push from the linked checkout. After the
-branch has been integrated and the checkout is clean, remove it from the primary
+Run the relevant checks and commit from the linked checkout. Never publish the
+local ticket branch. After review, verify that the remote trunk is an ancestor
+of `HEAD`, then integrate the exact commit directly:
+
+```sh
+git fetch origin main
+git merge-base --is-ancestor origin/main HEAD
+git push origin HEAD:main
+```
+
+Never create a pull request unless the user explicitly requests one. After the
+commit is integrated and the checkout is clean, remove it from the primary
 checkout:
 
 ```sh
