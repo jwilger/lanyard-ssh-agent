@@ -42,6 +42,10 @@ fn write_executable(path: &Path, source: &str) -> Result<(), Box<dyn Error>> {
     clippy::literal_string_with_formatting_args,
     reason = "the literal contains Bash parameter expansion, not Rust formatting"
 )]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the arguments name independent release-state dimensions used by the scenario matrix"
+)]
 fn run_release_state(
     dirty: bool,
     crate_status: &str,
@@ -50,6 +54,7 @@ fn run_release_state(
     tag_exists: bool,
     tag_sha: &str,
     verify_fails: bool,
+    recovery_tag: Option<&str>,
 ) -> Result<(Output, String, String), Box<dyn Error>> {
     let sandbox = tempfile::tempdir()?;
     let bin = sandbox.path().join("bin");
@@ -123,6 +128,7 @@ fi
         .env("TAG_EXISTS", if tag_exists { "1" } else { "0" })
         .env("TAG_SHA", tag_sha)
         .env("VERIFY_FAIL", if verify_fails { "1" } else { "0" })
+        .env("RECOVERY_TAG", recovery_tag.unwrap_or_default())
         .env("GH_RELEASE_AUTOMATION_TOKEN", "test-token")
         .env("RELEASE_SIGNING_KEY", "test-private-key")
         .env("RELEASE_SIGNING_NAME", "Release Bot")
@@ -769,7 +775,7 @@ fn only_an_unpublished_version_enters_the_artifact_pipeline() -> Result<(), Box<
 #[test]
 fn preparation_commit_continues_in_the_same_release_run() -> Result<(), Box<dyn Error>> {
     let (dirty, dirty_log, dirty_outputs) =
-        run_release_state(true, "404", "404", "false", false, "", false)?;
+        run_release_state(true, "404", "404", "false", false, "", false, None)?;
     assert!(
         dirty.status.success(),
         "{}",
@@ -793,7 +799,7 @@ fn preparation_commit_continues_in_the_same_release_run() -> Result<(), Box<dyn 
 #[test]
 fn release_state_transitions_are_fail_closed_and_idempotent() -> Result<(), Box<dyn Error>> {
     let (unpublished, unpublished_log, unpublished_outputs) =
-        run_release_state(false, "404", "404", "false", false, "", false)?;
+        run_release_state(false, "404", "404", "false", false, "", false, None)?;
     assert!(unpublished.status.success());
     assert!(unpublished_log.contains("tag -s -a v1.2.3"));
     assert!(unpublished_log.contains("push origin refs/tags/v1.2.3"));
@@ -801,27 +807,27 @@ fn release_state_transitions_are_fail_closed_and_idempotent() -> Result<(), Box<
     assert!(unpublished_outputs.contains("tag=v1.2.3"));
 
     let (retry, retry_log, retry_outputs) =
-        run_release_state(false, "404", "404", "false", true, "release-sha", false)?;
+        run_release_state(false, "404", "404", "false", true, "release-sha", false, None)?;
     assert!(retry.status.success());
     assert!(retry_log.contains("verify-tag v1.2.3"));
     assert!(!retry_log.contains("tag -s -a"));
     assert!(retry_outputs.contains("publishing=true"));
 
     let (older_tag, older_tag_log, older_tag_outputs) =
-        run_release_state(false, "404", "404", "false", true, "other-sha", false)?;
+        run_release_state(false, "404", "404", "false", true, "other-sha", false, None)?;
     assert!(older_tag.status.success());
     assert!(older_tag_log.contains("verify-tag v1.2.3"));
     assert!(older_tag_outputs.contains("publishing=true"));
     assert!(older_tag_outputs.contains("release-commit=other-sha"));
 
     let (invalid_signature, invalid_log, invalid_outputs) =
-        run_release_state(false, "404", "404", "false", true, "release-sha", true)?;
+        run_release_state(false, "404", "404", "false", true, "release-sha", true, None)?;
     assert!(!invalid_signature.status.success());
     assert!(!invalid_log.contains("push origin refs/tags/"));
     assert!(invalid_outputs.contains("publishing=false"));
 
     let (registry_error, _, registry_error_outputs) =
-        run_release_state(false, "503", "404", "false", false, "", false)?;
+        run_release_state(false, "503", "404", "false", false, "", false, None)?;
     assert!(!registry_error.status.success());
     assert!(registry_error_outputs.contains("publishing=false"));
     Ok(())
@@ -830,7 +836,7 @@ fn release_state_transitions_are_fail_closed_and_idempotent() -> Result<(), Box<
 #[test]
 fn published_crate_resumes_incomplete_github_release() -> Result<(), Box<dyn Error>> {
     let (published, published_log, published_outputs) =
-        run_release_state(false, "200", "200", "false", true, "old-release-sha", false)?;
+        run_release_state(false, "200", "200", "false", true, "old-release-sha", false, None)?;
     assert!(published.status.success());
     assert!(!published_log.contains("tag -s"));
     assert!(published_log.contains("verify-tag v1.2.3"));
@@ -852,32 +858,33 @@ fn published_crate_resumes_incomplete_github_release() -> Result<(), Box<dyn Err
             tag_exists,
             "old-release-sha",
             verify_fails,
+            None,
         )?;
         assert!(!invalid_public.status.success());
         assert!(invalid_public_outputs.contains("publishing=false"));
     }
 
     let (draft_release, _, draft_release_outputs) =
-        run_release_state(false, "200", "200", "true", true, "old-release-sha", false)?;
+        run_release_state(false, "200", "200", "true", true, "old-release-sha", false, None)?;
     assert!(draft_release.status.success());
     assert!(draft_release_outputs.contains("publishing=true"));
     assert!(draft_release_outputs.contains("release-commit=old-release-sha"));
 
     let (missing_release, _, missing_release_outputs) =
-        run_release_state(false, "200", "404", "false", true, "old-release-sha", false)?;
+        run_release_state(false, "200", "404", "false", true, "old-release-sha", false, None)?;
     assert!(missing_release.status.success());
     assert!(missing_release_outputs.contains("publishing=true"));
     assert!(missing_release_outputs.contains("release-commit=old-release-sha"));
 
     let (missing_tag, missing_tag_log, missing_tag_outputs) =
-        run_release_state(false, "200", "404", "false", false, "", false)?;
+        run_release_state(false, "200", "404", "false", false, "", false, None)?;
     assert!(!missing_tag.status.success());
     assert!(!missing_tag_log.contains("tag -s -a"));
     assert!(missing_tag_outputs.contains("publishing=false"));
 
     for (status, draft) in [("503", "false"), ("200", "null")] {
         let (invalid_release, _, invalid_release_outputs) =
-            run_release_state(false, "200", status, draft, true, "release-sha", false)?;
+            run_release_state(false, "200", status, draft, true, "release-sha", false, None)?;
         assert!(!invalid_release.status.success());
         assert!(invalid_release_outputs.contains("publishing=false"));
     }
@@ -917,6 +924,70 @@ fn unfinished_release_is_selected_before_preparing_a_new_version() -> Result<(),
             .and_then(|step| step.get("if"))
             .and_then(Yaml::as_str),
         Some("${{ steps.recovery-state.outputs.recovering != 'true' }}")
+    );
+    Ok(())
+}
+
+#[test]
+fn detected_recovery_tag_is_reverified_and_propagated() -> Result<(), Box<dyn Error>> {
+    let (recovery, commands, outputs) = run_release_state(
+        false,
+        "200",
+        "200",
+        "true",
+        true,
+        "old-release-sha",
+        false,
+        Some("v1.2.3"),
+    )?;
+    assert!(recovery.status.success());
+    assert!(commands.contains("verify-tag v1.2.3"));
+    assert!(!commands.contains("add Cargo.toml"));
+    assert!(!commands.contains("git commit "));
+    assert!(!commands.contains("tag -s -a"));
+    assert!(!commands.contains("push origin"));
+    assert_eq!(
+        outputs,
+        "publishing=true\ntag=v1.2.3\ntag-flag=--tag=v1.2.3\nrelease-commit=old-release-sha\n"
+    );
+
+    let (invalid, invalid_commands, invalid_outputs) = run_release_state(
+        false,
+        "200",
+        "200",
+        "true",
+        true,
+        "old-release-sha",
+        true,
+        Some("v1.2.3"),
+    )?;
+    assert!(!invalid.status.success());
+    assert!(!invalid_commands.contains("add Cargo.toml"));
+    assert!(!invalid_commands.contains("git commit "));
+    assert!(!invalid_commands.contains("tag -s -a"));
+    assert!(!invalid_commands.contains("push origin"));
+    assert_eq!(
+        invalid_outputs,
+        "publishing=false\ntag=v1.2.3\ntag-flag=--tag=v1.2.3\n"
+    );
+
+    let release = workflow(".github/workflows/release.yml")?;
+    let steps = release
+        .get("jobs")
+        .and_then(|jobs| jobs.get("prepare-release"))
+        .and_then(|job| job.get("steps"))
+        .and_then(Yaml::as_sequence)
+        .ok_or("prepare-release steps must be a sequence")?;
+    let preparation = steps
+        .iter()
+        .find(|step| step.get("id").and_then(Yaml::as_str) == Some("release-state"))
+        .ok_or("release-state step is missing")?;
+    assert_eq!(
+        preparation
+            .get("env")
+            .and_then(|environment| environment.get("RECOVERY_TAG"))
+            .and_then(Yaml::as_str),
+        Some("${{ steps.recovery-state.outputs.tag }}")
     );
     Ok(())
 }

@@ -23,10 +23,6 @@ finish() {
 }
 trap finish EXIT
 
-git add Cargo.toml Cargo.lock CHANGELOG.md
-version="$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | select(.name == "lanyard-ssh-agent") | .version')"
-auth="$(printf 'x-access-token:%s' "$GH_RELEASE_AUTOMATION_TOKEN" | base64 -w0)"
-
 configure_verification() {
   [[ -n "$RELEASE_SIGNING_KEY" ]]
   printf '%s\n' "$RELEASE_SIGNING_KEY" > "$signing_key_path"
@@ -59,6 +55,10 @@ if [[ -n "${RECOVERY_TAG:-}" ]]; then
   publishing=true
   exit 0
 fi
+
+git add Cargo.toml Cargo.lock CHANGELOG.md
+version="$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | select(.name == "lanyard-ssh-agent") | .version')"
+auth="$(printf 'x-access-token:%s' "$GH_RELEASE_AUTOMATION_TOKEN" | base64 -w0)"
 
 if ! git diff --cached --quiet; then
   configure_signing
