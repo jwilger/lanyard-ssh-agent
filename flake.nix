@@ -47,6 +47,7 @@
             version = "0.1.0";
             src = self;
             cargoLock.lockFile = ./Cargo.lock;
+            nativeCheckInputs = [ pkgs.jq ];
           };
           testPackage = pkgs.writeShellScriptBin "lanyard-ssh-agent" ''
             printf '%s|%s\n' "$SSH_AUTH_SOCK" "$*" >> "$LANYARD_TEST_LOG"

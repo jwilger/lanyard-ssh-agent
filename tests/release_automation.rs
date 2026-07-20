@@ -5,7 +5,7 @@ use std::{
     error::Error,
     fs, io,
     os::unix::fs::PermissionsExt as _,
-    path::Path,
+    path::{Path, PathBuf},
     process::{Command, Output},
 };
 
@@ -31,10 +31,38 @@ fn workflow(path: &str) -> Result<Yaml, Box<dyn Error>> {
 }
 
 fn write_executable(path: &Path, source: &str) -> Result<(), Box<dyn Error>> {
-    fs::write(path, source)?;
+    let bash = executable_on_path("bash")?;
+    let rendered_source =
+        source.replacen("#!/usr/bin/env bash", &format!("#!{}", bash.display()), 1);
+    fs::write(path, rendered_source)?;
     let mut permissions = fs::metadata(path)?.permissions();
     permissions.set_mode(0o700);
     fs::set_permissions(path, permissions)?;
+    Ok(())
+}
+
+fn executable_on_path(name: &str) -> Result<PathBuf, Box<dyn Error>> {
+    let path = env::var_os("PATH").ok_or("PATH is unavailable")?;
+    env::split_paths(&path)
+        .map(|directory| directory.join(name))
+        .find(|candidate| candidate.is_file())
+        .ok_or_else(|| format!("{name} is unavailable on PATH").into())
+}
+
+#[test]
+fn generated_test_executables_do_not_require_usr_bin_env() -> Result<(), Box<dyn Error>> {
+    let sandbox = tempfile::tempdir()?;
+    let executable = sandbox.path().join("probe");
+    write_executable(
+        &executable,
+        "#!/usr/bin/env bash\nprintf '%s\\n' portable\n",
+    )?;
+
+    let source = fs::read_to_string(&executable)?;
+    assert!(!source.starts_with("#!/usr/bin/env"));
+    let output = Command::new(executable).env_clear().output()?;
+    assert!(output.status.success());
+    assert_eq!(String::from_utf8(output.stdout)?, "portable\n");
     Ok(())
 }
 
