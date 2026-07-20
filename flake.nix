@@ -161,6 +161,7 @@
             packages = with pkgs; [
               actionlint
               bats
+              flock
               cargo-deny
               cargo-mutants
               git

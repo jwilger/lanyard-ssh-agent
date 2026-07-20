@@ -47,3 +47,32 @@ teardown() {
   [ "$status" -eq 143 ]
   ! grep -Fq "$(printf '\t')$worktree" "$registry"
 }
+
+@test "a crashed allocator leaves no stale lock ownership to reclaim" {
+  "$FIXTURE_REPO/scripts/worktree-bootstrap.sh" first
+  worktree="$FIXTURE_REPO/.worktrees/first"
+  common_dir="$(git -C "$FIXTURE_REPO" rev-parse --path-format=absolute --git-common-dir)"
+  registry="$common_dir/lanyard-worktree-ports.tsv"
+  lock="$registry.lock"
+  "$FIXTURE_REPO/scripts/worktree-ports.sh" release "$worktree"
+  printf '%s\n' \
+    "trap 'if [[ \$BASH_COMMAND == \"touch \\\"\\\$registry\\\"\" ]]; then trap - DEBUG; touch \"$FIXTURE_REPO/lock-held\"; while true; do sleep 1; done; fi' DEBUG" \
+    >"$FIXTURE_REPO/crash-after-lock.bash"
+
+  env BASH_ENV="$FIXTURE_REPO/crash-after-lock.bash" \
+    "$FIXTURE_REPO/scripts/worktree-ports.sh" "$worktree" &
+  allocator_pid=$!
+  for _ in {1..100}; do
+    [ -e "$FIXTURE_REPO/lock-held" ] && break
+    sleep 0.01
+  done
+  [ -e "$FIXTURE_REPO/lock-held" ]
+  kill -KILL "$allocator_pid"
+  wait "$allocator_pid" 2>/dev/null || true
+
+  [ ! -L "$lock" ]
+  run "$FIXTURE_REPO/scripts/worktree-ports.sh" "$worktree"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == LANYARD_SITE_PORT=* ]]
+}

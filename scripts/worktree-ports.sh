@@ -41,35 +41,14 @@ lock="$registry.lock"
 base="${LANYARD_WORKTREE_PORT_BASE:-4327}"
 stride="${LANYARD_WORKTREE_PORT_STRIDE:-10}"
 
-lock_owner="${lock}.$$.${RANDOM}"
-mkdir "$lock_owner"
-release_lock() {
-  if [ "$(readlink "$lock" 2>/dev/null || true)" = "$lock_owner" ]; then
-    rm -f "$lock"
-  fi
-  rmdir "$lock_owner" 2>/dev/null || true
-}
-trap release_lock EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-attempt=0
-while ! ln -s "$lock_owner" "$lock" 2>/dev/null; do
-  holder="$(readlink "$lock" 2>/dev/null || true)"
-  holder_metadata="${holder#"${lock}."}"
-  holder_pid="${holder_metadata%%.*}"
-  if [[ "$holder" = "${lock}."* ]] && [[ "$holder_pid" =~ ^[0-9]+$ ]] && ! kill -0 "$holder_pid" 2>/dev/null; then
-    rm -f "$lock"
-    rmdir "$holder" 2>/dev/null || true
-    continue
-  fi
-  attempt=$((attempt + 1))
-  if [ "$attempt" -ge 100 ]; then
-    echo "worktrees: timed out waiting for the port registry lock" >&2
-    exit 1
-  fi
-  sleep 0.05
-done
+exec {lock_fd}>"$lock"
+if ! flock -w 5 "$lock_fd"; then
+  echo "worktrees: timed out waiting for the port registry lock" >&2
+  exit 1
+fi
 
 touch "$registry"
 

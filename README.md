@@ -34,4 +34,26 @@ Home Manager users can import `homeManagerModules.default`. On Linux, enabling
 adds forwarded-agent registration to Bash or Zsh when the corresponding shell
 is managed by Home Manager, and points OpenSSH at `SSH_AUTH_SOCK`.
 
+## Development
+
+Enter the reproducible environment with `nix develop`. Ticket work happens in
+isolated linked worktrees so parallel changes get independent ports and caches
+without moving the primary checkout:
+
+```sh
+just worktree-create 20260720-example
+cd .worktrees/20260720-example
+```
+
+Run `just check` before publishing the reviewed commit. After the commit has
+been integrated into `main`, return to the primary checkout and remove the
+linked worktree:
+
+```sh
+just worktree-remove 20260720-example
+```
+
+See `AGENTS.md` for the complete lifecycle, guard, and cache-isolation policy,
+and `CONTRIBUTING.md` for delivery requirements.
+
 Licensed under either Apache-2.0 or MIT, at your option.
