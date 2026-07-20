@@ -1,27 +1,36 @@
 # Releases and deployments
 
-Lanyard uses one trunk-based `Release` workflow. Every push to `main` runs the
-same state machine, and `workflow_dispatch` can safely rerun it after an
-interruption. No release pull request is created or merged.
+Lanyard uses one trunk-based CI pipeline. Every push to `main` first runs the
+full repository check. Only when the full repository check succeeds does CI
+call the `Release` state machine for that exact revision. No release pull request
+is created or merged.
+
+Rapid pushes can coalesce into one natural semantic-version release. Each run
+uses only its verified revision: if a newer commit has already advanced
+`main`, the older run's release-preparation push fails safely instead of
+releasing unverified code. The newer successful run then includes the combined
+unreleased commits in its naturally calculated version and changelog.
 
 ## Release sequence
 
-1. release-plz updates `Cargo.toml`, `Cargo.lock`, and `CHANGELOG.md`. When that
+1. CI completes `just check`, including formatting, linting, tests, end-to-end
+   checks, dependency policy, and mutation testing.
+2. release-plz updates `Cargo.toml`, `Cargo.lock`, and `CHANGELOG.md`. When that
    produces a change, Lanyard creates a signed release-preparation commit,
    pushes it directly to `main`, and continues in the same non-cancelled run.
    The run triggered by that push will later observe the completed release and
    become a no-op.
-2. The active run creates or verifies a signed annotated `vX.Y.Z` tag and
+3. The active run creates or verifies a signed annotated `vX.Y.Z` tag and
    resolves its commit. An existing verified tag remains authoritative if
    `main` has advanced. Every later checkout uses that exact commit.
-3. cargo-dist builds the x86_64 and aarch64 GNU/Linux archives and SHA-256
+4. cargo-dist builds the x86_64 and aarch64 GNU/Linux archives and SHA-256
    checksums. Those verified artifacts are uploaded to a draft GitHub
    Release. Nothing is public yet.
-4. Only after the draft exists, the workflow loads the crates.io credential,
+5. Only after the draft exists, the workflow loads the crates.io credential,
    validates that the tag and crate manifest versions match, and runs
    `cargo publish --locked`. It polls the public registry until that exact
    version is visible.
-5. Only after crates.io succeeds does the workflow make the GitHub Release
+6. Only after crates.io succeeds does the workflow make the GitHub Release
    public.
 
 The irreversible boundary is therefore late in the pipeline: artifacts are

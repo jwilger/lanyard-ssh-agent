@@ -16,3 +16,11 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@21a544727d0c62386e78b4befe52d19ad12692e3 # v17
       - name: Check
         run: nix develop --command just check
+
+  release:
+    needs: check
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    secrets: inherit

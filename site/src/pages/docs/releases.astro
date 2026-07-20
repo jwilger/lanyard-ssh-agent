@@ -32,9 +32,11 @@ const stagedReleaseAdr = requireAdr(await getAdrs(), STAGED_RELEASE_ADR);
       >
     </table>
     <h2>Versioning</h2><p>
-      Release-plz derives changelog entries and versions from Conventional
-      Commits, then a single trunk-based workflow signs the release commit and
-      tag. Cargo-dist builds platform artifacts from that exact tag commit.
+      Every main revision must pass the full repository check before the
+      release state machine can start. Release-plz then derives changelog
+      entries and versions from Conventional Commits, and the trunk-based
+      workflow signs the release commit and tag. Cargo-dist builds platform
+      artifacts from that exact tag commit.
       Third-party actions are pinned to immutable revisions so changes to the
       release machinery are reviewable.
     </p>
@@ -48,7 +50,8 @@ const stagedReleaseAdr = requireAdr(await getAdrs(), STAGED_RELEASE_ADR);
     </ol><p>
       No release pull request or second release workflow is involved. Safe
       retries reuse the draft and the existing signed tag; inconsistent state
-      fails closed.
+      fails closed. Rapid pushes can coalesce into one natural release, but
+      unverified code is never substituted for the revision that passed.
     </p>
     <h2>
       Verify a download

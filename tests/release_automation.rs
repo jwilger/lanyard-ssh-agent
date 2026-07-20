@@ -74,7 +74,7 @@ fn generated_test_executables_do_not_require_usr_bin_env() -> Result<(), Box<dyn
     clippy::too_many_arguments,
     reason = "the arguments name independent release-state dimensions used by the scenario matrix"
 )]
-fn run_release_state(
+fn run_release_state_with_remote(
     dirty: bool,
     crate_status: &str,
     github_release_status: &str,
@@ -83,6 +83,7 @@ fn run_release_state(
     tag_sha: &str,
     verify_fails: bool,
     recovery_tag: Option<&str>,
+    remote_main_sha: &str,
 ) -> Result<(Output, String, String), Box<dyn Error>> {
     let sandbox = tempfile::tempdir()?;
     let bin = sandbox.path().join("bin");
@@ -101,6 +102,7 @@ case "$*" in
     ;;
   "rev-parse refs/tags/"*"^{commit}") printf '%s\n' "${TAG_SHA:-release-sha}" ;;
   "rev-parse HEAD") printf '%s\n' release-sha ;;
+  *"push origin HEAD:main") test "${REMOTE_MAIN_SHA}" = release-sha ;;
   "verify-tag "*) test "${VERIFY_FAIL:-0}" != 1 ;;
 esac
 "#,
@@ -155,6 +157,7 @@ fi
         .env("GITHUB_REPOSITORY", "jwilger/lanyard-ssh-agent")
         .env("TAG_EXISTS", if tag_exists { "1" } else { "0" })
         .env("TAG_SHA", tag_sha)
+        .env("REMOTE_MAIN_SHA", remote_main_sha)
         .env("VERIFY_FAIL", if verify_fails { "1" } else { "0" })
         .env("RECOVERY_TAG", recovery_tag.unwrap_or_default())
         .env("GH_RELEASE_AUTOMATION_TOKEN", "test-token")
@@ -167,6 +170,33 @@ fi
         fs::read_to_string(command_log).unwrap_or_default(),
         fs::read_to_string(github_output).unwrap_or_default(),
     ))
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the arguments name independent release-state dimensions used by the scenario matrix"
+)]
+fn run_release_state(
+    dirty: bool,
+    crate_status: &str,
+    github_release_status: &str,
+    github_release_draft: &str,
+    tag_exists: bool,
+    tag_sha: &str,
+    verify_fails: bool,
+    recovery_tag: Option<&str>,
+) -> Result<(Output, String, String), Box<dyn Error>> {
+    run_release_state_with_remote(
+        dirty,
+        crate_status,
+        github_release_status,
+        github_release_draft,
+        tag_exists,
+        tag_sha,
+        verify_fails,
+        recovery_tag,
+        "release-sha",
+    )
 }
 
 fn run_stage_release(existing: &str) -> Result<(Output, String), Box<dyn Error>> {
@@ -428,6 +458,36 @@ fn values_for_key<'document>(
     }
 }
 
+fn assert_pinned_tool_install(
+    steps: &[Yaml],
+    name: &str,
+    tool: &str,
+) -> Result<(), Box<dyn Error>> {
+    let install = steps
+        .iter()
+        .find(|step| step.get("name").and_then(Yaml::as_str) == Some(name))
+        .ok_or_else(|| format!("{name} step is missing"))?;
+    assert_eq!(
+        install.get("uses").and_then(Yaml::as_str),
+        Some("taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154"),
+        "{name} must use the reviewed immutable installer revision"
+    );
+    assert_eq!(
+        install
+            .get("with")
+            .and_then(|inputs| inputs.get("tool"))
+            .and_then(Yaml::as_str),
+        Some(tool),
+        "{name} must install the exact reviewed tool version"
+    );
+    assert_eq!(
+        install.get("if").and_then(Yaml::as_str),
+        Some("${{ steps.recovery-state.outputs.recovering != 'true' }}"),
+        "{name} must be skipped while recovering an existing release"
+    );
+    Ok(())
+}
+
 fn assert_immutable_action_references(workflow: &Yaml) -> Result<(), Box<dyn Error>> {
     let mut references = Vec::new();
     values_for_key(workflow, "uses", &mut references);
@@ -663,13 +723,45 @@ fn releases_have_one_main_branch_entrypoint() -> Result<(), Box<dyn Error>> {
 
     let release = workflow(".github/workflows/release.yml")?;
     let source = read(".github/workflows/release.yml")?;
+    let ci_source = read(".github/workflows/ci.yml")?;
     assert_immutable_action_references(&release)?;
-    assert!(source.contains("branches: [main]"));
-    assert!(source.contains("workflow_dispatch:"));
+    assert!(ci_source.contains("branches: [main]"));
+    assert!(source.contains("workflow_call:"));
     assert!(!source.contains("pull_request:"));
     assert!(!source.contains("tags:"));
     assert!(source.contains("draft GitHub Release"));
     assert!(!source.contains("If you push multiple tags at once"));
+    Ok(())
+}
+
+#[test]
+fn a_verified_main_revision_is_the_only_automatic_release_entrypoint() -> Result<(), Box<dyn Error>>
+{
+    let ci = workflow(".github/workflows/ci.yml")?;
+    let release = workflow(".github/workflows/release.yml")?;
+
+    let release_job = ci
+        .get("jobs")
+        .and_then(|jobs| jobs.get("release"))
+        .ok_or("CI must call the release state machine")?;
+    assert_eq!(
+        release_job.get("needs").and_then(Yaml::as_str),
+        Some("check")
+    );
+    assert_eq!(
+        release_job.get("if").and_then(Yaml::as_str),
+        Some("${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}")
+    );
+    assert_eq!(
+        release_job.get("uses").and_then(Yaml::as_str),
+        Some("./.github/workflows/release.yml")
+    );
+
+    let release_source = read(".github/workflows/release.yml")?;
+    assert!(release_source.contains("workflow_call:"));
+    assert!(!release_source.contains("branches: [main]"));
+    assert!(!release_source.contains("workflow_dispatch:"));
+    assert!(release.get("jobs").is_some());
     Ok(())
 }
 
@@ -718,7 +810,7 @@ fn release_preparation_updates_main_without_a_release_pr() -> Result<(), Box<dyn
             .get("with")
             .and_then(|inputs| inputs.get("ref"))
             .and_then(Yaml::as_str),
-        Some("main")
+        Some("${{ github.sha }}")
     );
     assert_eq!(
         checkout
@@ -727,13 +819,25 @@ fn release_preparation_updates_main_without_a_release_pr() -> Result<(), Box<dyn
             .and_then(Yaml::as_bool),
         Some(false)
     );
-    let mut commands = Vec::new();
     let mut scripts = Vec::new();
-    values_for_key(prepare, "command", &mut commands);
     values_for_key(prepare, "run", &mut scripts);
     let state_script = read("scripts/prepare-release.sh")?;
 
-    assert_eq!(commands, ["update"]);
+    assert!(scripts.contains(&"release-plz update"));
+    assert!(
+        !read(".github/workflows/release.yml")?.contains("MarcoIeni/release-plz-action@"),
+        "the wrapper action does not support the update command"
+    );
+    let steps = prepare
+        .get("steps")
+        .and_then(Yaml::as_sequence)
+        .ok_or("release preparation steps must be a sequence")?;
+    assert_pinned_tool_install(
+        steps,
+        "Install cargo-semver-checks",
+        "cargo-semver-checks@0.48.0",
+    )?;
+    assert_pinned_tool_install(steps, "Install release-plz", "release-plz@0.3.159")?;
     let step_names = prepare
         .get("steps")
         .and_then(Yaml::as_sequence)
@@ -821,6 +925,39 @@ fn preparation_commit_continues_in_the_same_release_run() -> Result<(), Box<dyn 
         .find("curl ")
         .ok_or("the same run must continue into publication")?;
     assert!(main_push < registry_check);
+    Ok(())
+}
+
+#[test]
+fn stale_no_diff_release_fails_before_tagging() -> Result<(), Box<dyn Error>> {
+    let (stale, commands, outputs) = run_release_state_with_remote(
+        false,
+        "404",
+        "404",
+        "false",
+        false,
+        "",
+        false,
+        None,
+        "newer-sha",
+    )?;
+
+    assert!(
+        !stale.status.success(),
+        "a stale release checkout must fail closed"
+    );
+    assert!(
+        commands.contains("push origin HEAD:main"),
+        "release preparation must compare-and-swap the verified revision onto main"
+    );
+    assert!(
+        !commands.contains("tag -s -a"),
+        "a stale checkout must not create a release tag"
+    );
+    assert!(
+        outputs.contains("publishing=false"),
+        "a stale checkout must not enter the artifact pipeline"
+    );
     Ok(())
 }
 
@@ -1304,7 +1441,8 @@ fn release_docs_describe_the_single_staged_pipeline() -> Result<(), Box<dyn Erro
         assert!(normalized.contains("GitHub Release public"));
     }
     assert!(guide.contains("Every push to `main`"));
-    assert!(guide.contains("workflow_dispatch"));
+    assert!(guide.contains("full repository check succeeds"));
+    assert!(guide.contains("Rapid pushes can coalesce"));
     assert!(guide.contains("No release pull request"));
     assert!(!guide.contains("shared workflow"));
     assert!(!guide.contains("release-plz pull request"));

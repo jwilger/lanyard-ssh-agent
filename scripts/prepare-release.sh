@@ -63,8 +63,8 @@ auth="$(printf 'x-access-token:%s' "$GH_RELEASE_AUTOMATION_TOKEN" | base64 -w0)"
 if ! git diff --cached --quiet; then
   configure_signing
   git commit -S -m "chore(release): prepare v${version}"
-  git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth}" push origin HEAD:main
 fi
+git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth}" push origin HEAD:main
 
 crate_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
   --retry 3 --retry-delay 2 --retry-all-errors --connect-timeout 10 --max-time 45 \

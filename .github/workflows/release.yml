@@ -4,9 +4,10 @@
 # SPDX-License-Identifier: MIT or Apache-2.0
 #
 # This checked-in workflow extends cargo-dist's generated build graph with one
-# trunk-based release state machine. A main push or manual dispatch prepares a
-# signed commit and tag, builds exact-commit artifacts, stages a draft GitHub
-# Release, publishes crates.io, and makes the GitHub Release public last.
+# trunk-based release state machine. The CI workflow calls it only after the
+# exact main revision passes the full check, then it prepares a signed commit
+# and tag, builds exact-commit artifacts, stages a draft GitHub Release,
+# publishes crates.io, and makes the GitHub Release public last.
 
 name: Release
 permissions:
@@ -16,13 +17,11 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
-# Runs are serialized without cancellation. A preparation commit continues
-# through publication in its own run, so correctness never depends on a queued
+# Calls are serialized without cancellation. A preparation commit continues
+# through publication in its own call, so correctness never depends on a queued
 # follow-up run surviving GitHub's concurrency pending queue.
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+  workflow_call:
 
 jobs:
   prepare-release:
@@ -48,7 +47,7 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
-          ref: main
+          ref: ${{ github.sha }}
           persist-credentials: false
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
@@ -62,14 +61,19 @@ jobs:
           RELEASE_SIGNING_KEY: ${{ steps.release-secrets.outputs.RELEASE_SIGNING_KEY }}
           RELEASE_SIGNING_EMAIL: ${{ vars.RELEASE_SIGNING_EMAIL }}
         run: scripts/detect-release-recovery.sh
+      - name: Install cargo-semver-checks
+        if: ${{ steps.recovery-state.outputs.recovering != 'true' }}
+        uses: taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154 # v2.81.8
+        with:
+          tool: cargo-semver-checks@0.48.0
+      - name: Install release-plz
+        if: ${{ steps.recovery-state.outputs.recovering != 'true' }}
+        uses: taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154 # v2.81.8
+        with:
+          tool: release-plz@0.3.159
       - name: Update versions and changelog
         if: ${{ steps.recovery-state.outputs.recovering != 'true' }}
-        uses: MarcoIeni/release-plz-action@e8792575c7f2366cf6ff3ccc33ead9ace5b691c7 # v0.5.130
-        with:
-          command: update
-          version: 0.3.159
-        env:
-          GITHUB_TOKEN: ${{ steps.release-secrets.outputs.GH_RELEASE_AUTOMATION_TOKEN }}
+        run: release-plz update
       - name: Configure signing and push release preparation commit
         id: release-state
         shell: bash
