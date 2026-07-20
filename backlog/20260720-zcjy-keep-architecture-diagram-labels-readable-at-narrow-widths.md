@@ -13,6 +13,8 @@ pr_mr_status:
 
 ## Acceptance criteria
 
+- [ ] The SSH, Git signing, multiplexer, and session labels remain visually distinct at the reproduced narrow viewport
+
 ## Subtasks
 
 ## Notes / Log
