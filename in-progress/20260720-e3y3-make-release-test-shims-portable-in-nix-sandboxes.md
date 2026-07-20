@@ -22,7 +22,7 @@ nix flake check rebuilds the package after any source change. Eleven release_aut
 
 - [x] Runtime-generated release test shims use a shell path available in pure Nix builds
 - [x] The full release_automation test target passes inside the package derivation
-- [ ] nix flake check passes from a fresh package rebuild
+- [x] nix flake check passes from a fresh package rebuild
 
 ## Subtasks
 
