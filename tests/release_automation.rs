@@ -260,7 +260,7 @@ fn release_entrypoint_enables_pinned_shared_automation() -> Result<(), Box<dyn E
     assert_eq!(
         shared_workflows,
         [
-            "jwilger/gha-workflows/.github/workflows/rust-release-plz.yml@017ca09a54090c441a12a0234e7bd0f96d485b8f"
+            "jwilger/gha-workflows/.github/workflows/rust-release-plz.yml@b4507a0b4110cd0254586382e805832c349e109d"
         ]
     );
     Ok(())
@@ -270,7 +270,7 @@ fn release_entrypoint_enables_pinned_shared_automation() -> Result<(), Box<dyn E
 fn release_guide_documents_the_enabled_shared_workflow() -> Result<(), Box<dyn Error>> {
     let guide = read("docs/releases.md")?;
 
-    assert!(guide.contains("017ca09a54090c441a12a0234e7bd0f96d485b8f"));
+    assert!(guide.contains("b4507a0b4110cd0254586382e805832c349e109d"));
     assert!(!guide.contains("RELEASE_WORKFLOW_NESTED_ACTIONS_PINNED"));
     Ok(())
 }

@@ -11,6 +11,6 @@ permissions:
 
 jobs:
   release:
-    uses: jwilger/gha-workflows/.github/workflows/rust-release-plz.yml@017ca09a54090c441a12a0234e7bd0f96d485b8f
+    uses: jwilger/gha-workflows/.github/workflows/rust-release-plz.yml@b4507a0b4110cd0254586382e805832c349e109d
     secrets:
       op-service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}

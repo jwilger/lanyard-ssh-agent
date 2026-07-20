@@ -17,7 +17,7 @@ same release.
 
 The `Release` workflow calls the signed, immutable
 `jwilger/gha-workflows` revision
-`017ca09a54090c441a12a0234e7bd0f96d485b8f`, recorded in
+`b4507a0b4110cd0254586382e805832c349e109d`, recorded in
 `.github/workflows/release-plz.yml`. Configure these repository resources:
 
 - secret `OP_SERVICE_ACCOUNT_TOKEN`, with access to the shared `Github Secrets`

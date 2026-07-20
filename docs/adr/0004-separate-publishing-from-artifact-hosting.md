@@ -29,7 +29,7 @@ pinned to full commit SHAs. Pages uses a dedicated least-privilege workflow
 and the `github-pages` deployment environment.
 
 The release-plz caller is pinned to shared-workflow revision
-`017ca09a54090c441a12a0234e7bd0f96d485b8f`. That revision pins every nested
+`b4507a0b4110cd0254586382e805832c349e109d`. That revision pins every nested
 action to a full commit SHA and enforces the invariant in its own CI, so the
 caller runs on every push to `main` without a separate feature gate. Pinning
 only the outer workflow would not make mutable nested action tags safe in jobs
