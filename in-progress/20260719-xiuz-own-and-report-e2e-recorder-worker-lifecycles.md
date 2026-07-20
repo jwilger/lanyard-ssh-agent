@@ -20,7 +20,7 @@ Final-review finding architecture-maintainability-001 from 20260719-bebi.
 
 ## Acceptance criteria
 
-- [ ] Recorder teardown waits for all connection workers without deadlock
+- [x] Recorder teardown waits for all connection workers without deadlock
 - [ ] Forwarding worker errors are surfaced in E2E diagnostics
 
 ## Subtasks
