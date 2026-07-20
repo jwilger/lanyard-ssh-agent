@@ -20,7 +20,7 @@ After npm ci in a clean worktree, npm run check fails with unresolved import.met
 
 ## Acceptance criteria
 
-- [ ] npm ci followed directly by npm run check passes in a clean checkout
+- [x] npm ci followed directly by npm run check passes in a clean checkout
 - [ ] Astro type generation runs before type-aware ESLint without weakening rules
 - [ ] Site unit, build, and browser tests remain green
 
