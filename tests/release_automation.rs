@@ -941,11 +941,25 @@ fn github_release_becomes_public_only_after_crates_io() -> Result<(), Box<dyn Er
 }
 
 #[test]
-fn release_guide_documents_the_enabled_shared_workflow() -> Result<(), Box<dyn Error>> {
+fn release_docs_describe_the_single_staged_pipeline() -> Result<(), Box<dyn Error>> {
     let guide = read("docs/releases.md")?;
+    let public_guide = read("site/src/pages/docs/releases.astro")?;
+    let superseded = read("docs/adr/0004-separate-publishing-from-artifact-hosting.md")?;
+    let decision = read("docs/adr/0006-stage-releases-before-publication.md")?;
 
-    assert!(guide.contains("b4507a0b4110cd0254586382e805832c349e109d"));
-    assert!(!guide.contains("RELEASE_WORKFLOW_NESTED_ACTIONS_PINNED"));
+    for document in [&guide, &public_guide, &decision] {
+        let normalized = document.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(normalized.contains("draft GitHub Release"));
+        assert!(normalized.contains("crates.io"));
+        assert!(normalized.contains("GitHub Release public"));
+    }
+    assert!(guide.contains("Every push to `main`"));
+    assert!(guide.contains("workflow_dispatch"));
+    assert!(guide.contains("No release pull request"));
+    assert!(!guide.contains("shared workflow"));
+    assert!(!guide.contains("release-plz pull request"));
+    assert!(superseded.contains("Superseded by ADR 0006"));
+    assert!(decision.contains("## Status\n\nAccepted"));
     Ok(())
 }
 

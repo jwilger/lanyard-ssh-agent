@@ -1,50 +1,71 @@
 # Releases and deployments
 
-Lanyard uses one tag-driven release path. A release-plz pull request updates
-the crate version and changelog. Merging that pull request causes release-plz
-to publish `lanyard-ssh-agent` to crates.io and push a signed `vX.Y.Z` tag.
-That tag starts dist, which creates the GitHub Release and attaches:
+Lanyard uses one trunk-based `Release` workflow. Every push to `main` runs the
+same state machine, and `workflow_dispatch` can safely rerun it after an
+interruption. No release pull request is created or merged.
 
-- `lanyard-ssh-agent-x86_64-unknown-linux-gnu.tar.xz` and its SHA-256 file;
-- `lanyard-ssh-agent-aarch64-unknown-linux-gnu.tar.xz` and its SHA-256 file;
-- the source archive, its SHA-256 file, and `sha256.sum`.
+## Release sequence
 
-release-plz deliberately does not create the GitHub Release. Keeping that
-responsibility in dist prevents two independent jobs from racing to create the
-same release.
+1. release-plz updates `Cargo.toml`, `Cargo.lock`, and `CHANGELOG.md`. When that
+   produces a change, Lanyard creates a signed release-preparation commit,
+   pushes it directly to `main`, and stops the current run. The resulting
+   `main` push starts the publishing run.
+2. The publishing run creates or verifies a signed annotated `vX.Y.Z` tag and
+   resolves its commit. Every later checkout uses that exact commit.
+3. cargo-dist builds the x86_64 and aarch64 GNU/Linux archives and SHA-256
+   checksums. Those verified artifacts are uploaded to a draft GitHub
+   Release. Nothing is public yet.
+4. Only after the draft exists, the workflow loads the crates.io credential,
+   validates that the tag and crate manifest versions match, and runs
+   `cargo publish --locked`. It polls the public registry until that exact
+   version is visible.
+5. Only after crates.io succeeds does the workflow make the GitHub Release
+   public.
+
+The irreversible boundary is therefore late in the pipeline: artifacts are
+built and safely staged before the crate is published, and the public release
+is the final announcement.
+
+## Retry and recovery behavior
+
+The workflow serializes runs for `main` and does not cancel an in-progress
+release. Its state transitions are idempotent:
+
+- an existing draft is reused and its assets are replaced;
+- an already-published crate is not published twice;
+- a failed or ambiguous `cargo publish` is followed by a bounded crates.io
+  visibility check;
+- a draft or missing GitHub Release can resume only from its existing verified
+  signed tag;
+- an already-public release with a valid signed tag is a successful no-op;
+- missing provenance, mismatched versions, unexpected API responses, invalid
+  signatures, and an unexpectedly public release before crates.io all fail
+  closed.
 
 ## Repository setup
 
-The `Release` workflow calls the signed, immutable
-`jwilger/gha-workflows` revision
-`b4507a0b4110cd0254586382e805832c349e109d`, recorded in
-`.github/workflows/release-plz.yml`. Configure these repository resources:
+Configure these repository resources:
 
-- secret `OP_SERVICE_ACCOUNT_TOKEN`, with access to the shared `Github Secrets`
+- secret `OP_SERVICE_ACCOUNT_TOKEN`, with access to the `Github Secrets`
   1Password vault;
-- variables `RELEASE_SIGNING_NAME` and `RELEASE_SIGNING_EMAIL`, used by the
-  shared workflow for signed commits and tags;
-- a crates.io API token stored as `CARGO_REGISTRY_TOKEN` in that vault;
+- variables `RELEASE_SIGNING_NAME` and `RELEASE_SIGNING_EMAIL`;
+- `GH_RELEASE_AUTOMATION_TOKEN` and `RELEASE_SIGNING_KEY` items in that vault,
+  used only while preparing signed commits and tags;
+- a `CARGO_REGISTRY_TOKEN` item in that vault, loaded only by the job that runs
+  after artifact staging;
 - GitHub Pages with **GitHub Actions** selected as its source.
 
-The shared workflow also retrieves its GitHub automation token and SSH signing
-key from 1Password. Branch and tag rules must continue to require signed
-history and disallow force pushes.
-
-### Release trigger
-
-Every push to `main` invokes the reusable workflow. Its credential-bearing
-nested actions are pinned to full immutable commit SHAs and a shared-workflow
-CI policy rejects mutable references. The release-PR and publish jobs retrieve
-only their required credentials from 1Password. A run with no release work is
-a successful no-op.
+All third-party actions are pinned to immutable commit SHAs. Checkout
+credentials are disabled, release credentials are scoped to the steps that
+need them, and force pushes are never used. Branch and tag rules must continue
+to require signed history and disallow force pushes.
 
 ## Pages
 
-Pushes to `main` that change `site/` run the Pages workflow. It installs the
-locked npm dependency graph, builds the Astro site, uploads `site/dist`, and
-deploys through the protected `github-pages` environment. The workflow can
-also be dispatched manually.
+Pushes to `main` that change `site/` run the separate least-privilege Pages
+workflow. It installs the locked npm dependency graph, builds the Astro site,
+uploads `site/dist`, and deploys through the protected `github-pages`
+environment. The workflow can also be dispatched manually.
 
 ## Local validation
 
@@ -59,13 +80,10 @@ dist plan --output-format=json
 `dist plan` must list both supported Linux archives and their `.sha256` files.
 The generated `.github/workflows/release.yml` is checked in. Its action pins
 come from `workspace.metadata.dist.github-action-commits`; update each entry to
-the immutable commit SHA for the exact action release before regenerating. The
-CI file has small shellcheck hardening edits beyond dist's template, so review
-the diff and restore those edits after running `dist generate`.
+the immutable commit SHA for the exact action release before regenerating.
 
-The generated installer pipe is also replaced by
+The generated installer pipe is replaced by
 `.github/actions/install-dist/action.yml`. That local action verifies dist's
 versioned release archive against repository-pinned SHA-256 values before
-extracting or executing it. Revalidate and update both architecture hashes when
-upgrading dist. Only the `host` job receives `contents: write`; build jobs run
-with read-only repository permission.
+extracting or executing it. Revalidate both architecture hashes when upgrading
+dist.

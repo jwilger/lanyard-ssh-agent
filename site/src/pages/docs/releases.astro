@@ -28,9 +28,22 @@ import DocLayout from "../../layouts/DocLayout.astro";
     </table>
     <h2>Versioning</h2><p>
       Release-plz derives changelog entries and versions from Conventional
-      Commits. Cargo-dist builds platform artifacts. Reusable workflows are
-      pinned to immutable revisions so changes to the release machinery are
-      reviewable.
+      Commits, then a single trunk-based workflow signs the release commit and
+      tag. Cargo-dist builds platform artifacts from that exact tag commit.
+      Third-party actions are pinned to immutable revisions so changes to the
+      release machinery are reviewable.
+    </p>
+    <h2>Publication order</h2><ol>
+      <li>Build and checksum both Linux archives.</li><li>
+        Upload the verified files to a draft GitHub Release.
+      </li><li>Publish the matching source package to crates.io.</li><li>
+        Make the GitHub Release public only after the registry confirms the
+        version.
+      </li>
+    </ol><p>
+      No release pull request or second release workflow is involved. Safe
+      retries reuse the draft and the existing signed tag; inconsistent state
+      fails closed.
     </p>
     <h2>
       Verify a download
