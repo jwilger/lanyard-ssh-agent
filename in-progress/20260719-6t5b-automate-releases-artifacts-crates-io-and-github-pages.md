@@ -21,6 +21,7 @@ Automate versioning, signed release artifacts, crates.io publication, and Pages 
 - [x] cargo-dist publishes Linux x86_64 and aarch64 artifacts with checksums
 - [x] The crate package and GitHub Release are reproducible from the repository
 - [x] GitHub Pages deploys the versioned documentation site
+- [ ] A single main-branch workflow prepares signed release commits without a release PR, stages verified cargo-dist artifacts in a draft GitHub Release, publishes to crates.io, and only then makes the GitHub Release public
 
 ## Subtasks
 
