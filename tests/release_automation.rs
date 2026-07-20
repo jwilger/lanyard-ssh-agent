@@ -1,9 +1,10 @@
 //! Regression tests for release and deployment configuration.
 
 use std::{
+    env,
     error::Error,
     fs, io,
-    os::unix::fs::PermissionsExt,
+    os::unix::fs::PermissionsExt as _,
     path::Path,
     process::{Command, Output},
 };
@@ -37,6 +38,10 @@ fn write_executable(path: &Path, source: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[expect(
+    clippy::literal_string_with_formatting_args,
+    reason = "the literal contains Bash parameter expansion, not Rust formatting"
+)]
 fn run_release_state(
     dirty: bool,
     crate_status: &str,
@@ -46,7 +51,7 @@ fn run_release_state(
 ) -> Result<(Output, String, String), Box<dyn Error>> {
     let sandbox = tempfile::tempdir()?;
     let bin = sandbox.path().join("bin");
-    fs::create_dir(&bin)?;
+    fs::create_dir_all(&bin)?;
     let command_log = sandbox.path().join("commands.log");
     let github_output = sandbox.path().join("github-output");
     write_executable(
@@ -86,7 +91,7 @@ printf '%s' "$CRATE_STATUS"
     let path = format!(
         "{}:{}",
         bin.display(),
-        std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".to_owned())
+        env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".to_owned())
     );
     let output = Command::new("bash")
         .arg("scripts/prepare-release.sh")
