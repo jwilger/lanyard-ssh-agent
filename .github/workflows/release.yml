@@ -58,6 +58,7 @@ jobs:
       publishing: ${{ steps.release-state.outputs.publishing }}
       tag: ${{ steps.release-state.outputs.tag }}
       tag-flag: ${{ steps.release-state.outputs.tag-flag }}
+      release-commit: ${{ steps.release-state.outputs.release-commit }}
     steps:
       - name: Load release preparation secrets
         id: release-secrets
@@ -102,10 +103,12 @@ jobs:
       val: ${{ steps.plan.outputs.manifest }}
       tag: ${{ needs.prepare-release.outputs.tag }}
       tag-flag: ${{ needs.prepare-release.outputs.tag-flag }}
+      release-commit: ${{ needs.prepare-release.outputs.release-commit }}
       publishing: ${{ needs.prepare-release.outputs.publishing }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
+          ref: ${{ needs.prepare-release.outputs.release-commit }}
           persist-credentials: false
           submodules: recursive
       - name: Install dist
@@ -164,6 +167,7 @@ jobs:
           git config --global core.longpaths true
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
+          ref: ${{ needs.plan.outputs.release-commit }}
           persist-credentials: false
           submodules: recursive
       - name: Install dist
@@ -217,6 +221,7 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
+          ref: ${{ needs.plan.outputs.release-commit }}
           persist-credentials: false
           submodules: recursive
       - name: Install cached dist
@@ -268,6 +273,7 @@ jobs:
       - name: Checkout release scripts
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
+          ref: ${{ needs.plan.outputs.release-commit }}
           persist-credentials: false
       - name: Download built artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
@@ -282,7 +288,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ needs.plan.outputs.tag }}
-          RELEASE_COMMIT: "${{ github.sha }}"
+          RELEASE_COMMIT: ${{ needs.plan.outputs.release-commit }}
         run: scripts/stage-release.sh
 
   publish-crate:
@@ -297,6 +303,7 @@ jobs:
       - name: Checkout release source
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
+          ref: ${{ needs.plan.outputs.release-commit }}
           persist-credentials: false
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
@@ -327,6 +334,7 @@ jobs:
       - name: Checkout release scripts
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
+          ref: ${{ needs.plan.outputs.release-commit }}
           persist-credentials: false
       - name: Make GitHub Release public
         env:

@@ -45,6 +45,8 @@ fn write_executable(path: &Path, source: &str) -> Result<(), Box<dyn Error>> {
 fn run_release_state(
     dirty: bool,
     crate_status: &str,
+    github_release_status: &str,
+    github_release_draft: &str,
     tag_exists: bool,
     tag_sha: &str,
     verify_fails: bool,
@@ -80,7 +82,20 @@ printf '%s\n' '{"packages":[{"name":"lanyard-ssh-agent","version":"1.2.3"}]}'
         &bin.join("curl"),
         r#"#!/usr/bin/env bash
 printf 'curl %s\n' "$*" >> "$COMMAND_LOG"
-printf '%s' "$CRATE_STATUS"
+if [[ "$*" == *api.github.com* ]]; then
+  output=""
+  while (($#)); do
+    if [[ "$1" == --output ]]; then
+      output="$2"
+      break
+    fi
+    shift
+  done
+  printf '{"draft":%s}\n' "$GITHUB_RELEASE_DRAFT" > "$output"
+  printf '%s' "$GITHUB_RELEASE_STATUS"
+else
+  printf '%s' "$CRATE_STATUS"
+fi
 "#,
     )?;
     write_executable(
@@ -102,6 +117,9 @@ printf '%s' "$CRATE_STATUS"
         .env("RUNNER_TEMP", sandbox.path())
         .env("DIRTY", if dirty { "1" } else { "0" })
         .env("CRATE_STATUS", crate_status)
+        .env("GITHUB_RELEASE_STATUS", github_release_status)
+        .env("GITHUB_RELEASE_DRAFT", github_release_draft)
+        .env("GITHUB_REPOSITORY", "jwilger/lanyard-ssh-agent")
         .env("TAG_EXISTS", if tag_exists { "1" } else { "0" })
         .env("TAG_SHA", tag_sha)
         .env("VERIFY_FAIL", if verify_fails { "1" } else { "0" })
@@ -637,6 +655,13 @@ fn only_an_unpublished_version_enters_the_artifact_pipeline() -> Result<(), Box<
         Some("${{ steps.release-state.outputs.publishing }}")
     );
     assert_eq!(
+        prepare
+            .get("outputs")
+            .and_then(|outputs| outputs.get("release-commit"))
+            .and_then(Yaml::as_str),
+        Some("${{ steps.release-state.outputs.release-commit }}")
+    );
+    assert_eq!(
         plan.get("if").and_then(Yaml::as_str),
         Some("${{ needs.prepare-release.outputs.publishing == 'true' }}")
     );
@@ -645,7 +670,8 @@ fn only_an_unpublished_version_enters_the_artifact_pipeline() -> Result<(), Box<
 
 #[test]
 fn release_state_transitions_are_fail_closed_and_idempotent() -> Result<(), Box<dyn Error>> {
-    let (dirty, dirty_log, dirty_outputs) = run_release_state(true, "404", false, "", false)?;
+    let (dirty, dirty_log, dirty_outputs) =
+        run_release_state(true, "404", "404", "false", false, "", false)?;
     assert!(
         dirty.status.success(),
         "{}",
@@ -656,14 +682,8 @@ fn release_state_transitions_are_fail_closed_and_idempotent() -> Result<(), Box<
     assert!(!dirty_log.contains("curl "));
     assert!(dirty_outputs.contains("publishing=false"));
 
-    let (published, published_log, published_outputs) =
-        run_release_state(false, "200", false, "", false)?;
-    assert!(published.status.success());
-    assert!(!published_log.contains("tag -s"));
-    assert!(published_outputs.contains("publishing=false"));
-
     let (unpublished, unpublished_log, unpublished_outputs) =
-        run_release_state(false, "404", false, "", false)?;
+        run_release_state(false, "404", "404", "false", false, "", false)?;
     assert!(unpublished.status.success());
     assert!(unpublished_log.contains("tag -s -a v1.2.3"));
     assert!(unpublished_log.contains("push origin refs/tags/v1.2.3"));
@@ -671,27 +691,116 @@ fn release_state_transitions_are_fail_closed_and_idempotent() -> Result<(), Box<
     assert!(unpublished_outputs.contains("tag=v1.2.3"));
 
     let (retry, retry_log, retry_outputs) =
-        run_release_state(false, "404", true, "release-sha", false)?;
+        run_release_state(false, "404", "404", "false", true, "release-sha", false)?;
     assert!(retry.status.success());
     assert!(retry_log.contains("verify-tag v1.2.3"));
     assert!(!retry_log.contains("tag -s -a"));
     assert!(retry_outputs.contains("publishing=true"));
 
     let (wrong_tag, _, wrong_tag_outputs) =
-        run_release_state(false, "404", true, "other-sha", false)?;
+        run_release_state(false, "404", "404", "false", true, "other-sha", false)?;
     assert!(!wrong_tag.status.success());
     assert!(wrong_tag_outputs.contains("publishing=false"));
 
     let (invalid_signature, invalid_log, invalid_outputs) =
-        run_release_state(false, "404", true, "release-sha", true)?;
+        run_release_state(false, "404", "404", "false", true, "release-sha", true)?;
     assert!(!invalid_signature.status.success());
     assert!(!invalid_log.contains("push origin refs/tags/"));
     assert!(invalid_outputs.contains("publishing=false"));
 
     let (registry_error, _, registry_error_outputs) =
-        run_release_state(false, "503", false, "", false)?;
+        run_release_state(false, "503", "404", "false", false, "", false)?;
     assert!(!registry_error.status.success());
     assert!(registry_error_outputs.contains("publishing=false"));
+    Ok(())
+}
+
+#[test]
+fn published_crate_resumes_incomplete_github_release() -> Result<(), Box<dyn Error>> {
+    let (published, published_log, published_outputs) =
+        run_release_state(false, "200", "200", "false", true, "old-release-sha", false)?;
+    assert!(published.status.success());
+    assert!(!published_log.contains("tag -s"));
+    assert!(published_log.contains("verify-tag v1.2.3"));
+    let verification_config = published_log
+        .find("config gpg.ssh.allowedSignersFile")
+        .ok_or("SSH verification must be configured")?;
+    let verification = published_log
+        .find("verify-tag v1.2.3")
+        .ok_or("tag signature must be verified")?;
+    assert!(verification_config < verification);
+    assert!(published_outputs.contains("publishing=false"));
+
+    for (tag_exists, verify_fails) in [(false, false), (true, true)] {
+        let (invalid_public, _, invalid_public_outputs) = run_release_state(
+            false,
+            "200",
+            "200",
+            "false",
+            tag_exists,
+            "old-release-sha",
+            verify_fails,
+        )?;
+        assert!(!invalid_public.status.success());
+        assert!(invalid_public_outputs.contains("publishing=false"));
+    }
+
+    let (draft_release, _, draft_release_outputs) =
+        run_release_state(false, "200", "200", "true", true, "old-release-sha", false)?;
+    assert!(draft_release.status.success());
+    assert!(draft_release_outputs.contains("publishing=true"));
+    assert!(draft_release_outputs.contains("release-commit=old-release-sha"));
+
+    let (missing_release, _, missing_release_outputs) =
+        run_release_state(false, "200", "404", "false", true, "old-release-sha", false)?;
+    assert!(missing_release.status.success());
+    assert!(missing_release_outputs.contains("publishing=true"));
+    assert!(missing_release_outputs.contains("release-commit=old-release-sha"));
+
+    let (missing_tag, missing_tag_log, missing_tag_outputs) =
+        run_release_state(false, "200", "404", "false", false, "", false)?;
+    assert!(!missing_tag.status.success());
+    assert!(!missing_tag_log.contains("tag -s -a"));
+    assert!(missing_tag_outputs.contains("publishing=false"));
+
+    for (status, draft) in [("503", "false"), ("200", "null")] {
+        let (invalid_release, _, invalid_release_outputs) =
+            run_release_state(false, "200", status, draft, true, "release-sha", false)?;
+        assert!(!invalid_release.status.success());
+        assert!(invalid_release_outputs.contains("publishing=false"));
+    }
+    Ok(())
+}
+
+#[test]
+fn release_jobs_checkout_the_authoritative_tag_commit() -> Result<(), Box<dyn Error>> {
+    let release = workflow(".github/workflows/release.yml")?;
+    let jobs = release
+        .get("jobs")
+        .ok_or("release workflow must define jobs")?;
+    let expected = [
+        (
+            "plan",
+            "${{ needs.prepare-release.outputs.release-commit }}",
+        ),
+        (
+            "build-local-artifacts",
+            "${{ needs.plan.outputs.release-commit }}",
+        ),
+        (
+            "build-global-artifacts",
+            "${{ needs.plan.outputs.release-commit }}",
+        ),
+        ("host", "${{ needs.plan.outputs.release-commit }}"),
+        ("publish-crate", "${{ needs.plan.outputs.release-commit }}"),
+        ("announce", "${{ needs.plan.outputs.release-commit }}"),
+    ];
+    for (job_name, expected_ref) in expected {
+        let job = jobs.get(job_name).ok_or("release job is missing")?;
+        let mut refs = Vec::new();
+        values_for_key(job, "ref", &mut refs);
+        assert_eq!(refs, [expected_ref], "{job_name} checkout ref");
+    }
     Ok(())
 }
 
