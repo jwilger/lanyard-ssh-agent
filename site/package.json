@@ -12,10 +12,11 @@
     "preview": "astro preview",
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
+    "prelint": "astro sync",
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "test:browser": "playwright test",
-    "check": "npm run format && npm run lint && npm run test && npm run build"
+    "check": "npm run format && npm run lint && npm run build && npm run test"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.9",
