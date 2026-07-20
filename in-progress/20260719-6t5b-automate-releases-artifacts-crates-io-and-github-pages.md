@@ -4,7 +4,7 @@ blocked_by: []
 blocks: [20260719-7kjj-adopt-lanyard-on-gregor]
 tags: []
 pr_mr_url: https://github.com/jwilger/lanyard-ssh-agent/pull/1
-pr_mr_status: checks-pending
+pr_mr_status: merged
 claim:
   host: unknown
   session: unknown
