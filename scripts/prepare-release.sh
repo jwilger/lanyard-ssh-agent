@@ -81,14 +81,6 @@ esac
 
 tag="v${version}"
 if [[ "$crate_published" == true ]]; then
-  configure_verification
-  if ! git rev-parse --verify --quiet "refs/tags/${tag}^{commit}" > /dev/null; then
-    echo "Published crate ${version} has no authoritative ${tag} tag" >&2
-    exit 1
-  fi
-  release_commit="$(git rev-parse "refs/tags/${tag}^{commit}")"
-  git verify-tag "$tag"
-
   github_release_status="$(curl --silent --show-error --output "$release_state_path" \
     --write-out '%{http_code}' --retry 3 --retry-delay 2 --retry-all-errors \
     --connect-timeout 10 --max-time 45 \
@@ -122,6 +114,14 @@ if [[ "$crate_published" == true ]]; then
       exit 1
       ;;
   esac
+
+  configure_verification
+  if ! git rev-parse --verify --quiet "refs/tags/${tag}^{commit}" > /dev/null; then
+    echo "Published crate ${version} has no authoritative ${tag} tag" >&2
+    exit 1
+  fi
+  release_commit="$(git rev-parse "refs/tags/${tag}^{commit}")"
+  git verify-tag "$tag"
 
   publishing=true
   exit 0

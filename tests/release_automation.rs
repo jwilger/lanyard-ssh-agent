@@ -855,7 +855,7 @@ fn published_crate_resumes_incomplete_github_release() -> Result<(), Box<dyn Err
         false,
         "200",
         "200",
-        "false",
+        "true",
         true,
         "old-release-sha",
         false,
@@ -871,14 +871,14 @@ fn published_crate_resumes_incomplete_github_release() -> Result<(), Box<dyn Err
         .find("verify-tag v1.2.3")
         .ok_or("tag signature must be verified")?;
     assert!(verification_config < verification);
-    assert!(published_outputs.contains("publishing=false"));
+    assert!(published_outputs.contains("publishing=true"));
 
     for (tag_exists, verify_fails) in [(false, false), (true, true)] {
         let (invalid_public, _, invalid_public_outputs) = run_release_state(
             false,
             "200",
             "200",
-            "false",
+            "true",
             tag_exists,
             "old-release-sha",
             verify_fails,
@@ -887,20 +887,6 @@ fn published_crate_resumes_incomplete_github_release() -> Result<(), Box<dyn Err
         assert!(!invalid_public.status.success());
         assert!(invalid_public_outputs.contains("publishing=false"));
     }
-
-    let (draft_release, _, draft_release_outputs) = run_release_state(
-        false,
-        "200",
-        "200",
-        "true",
-        true,
-        "old-release-sha",
-        false,
-        None,
-    )?;
-    assert!(draft_release.status.success());
-    assert!(draft_release_outputs.contains("publishing=true"));
-    assert!(draft_release_outputs.contains("release-commit=old-release-sha"));
 
     let (missing_release, _, missing_release_outputs) = run_release_state(
         false,
@@ -1076,6 +1062,25 @@ fn completed_release_does_not_require_the_historical_signing_identity() -> Resul
     let (output, commands, outputs) = run_recovery_detection("200", "200", "false")?;
     assert!(output.status.success());
     assert_eq!(outputs, "recovering=false\n");
+    assert!(!commands.contains("verify-tag"));
+    Ok(())
+}
+
+#[test]
+fn completed_release_preparation_does_not_require_the_historical_signing_identity()
+-> Result<(), Box<dyn Error>> {
+    let (output, commands, outputs) = run_release_state(
+        false,
+        "200",
+        "200",
+        "false",
+        true,
+        "old-release-sha",
+        true,
+        None,
+    )?;
+    assert!(output.status.success());
+    assert_eq!(outputs, "publishing=false\n");
     assert!(!commands.contains("verify-tag"));
     Ok(())
 }
