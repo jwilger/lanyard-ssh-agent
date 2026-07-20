@@ -24,7 +24,7 @@ Use the worktrees plugin's project-specific setup. Integrate the confirmed comma
 - [x] The existing justfile exposes confirmed worktree lifecycle commands
 - [x] Pre-commit and pre-push guards reject operations from the primary checkout while permitting worktrees
 - [x] Rust/Nix and Astro/npm caches are warmed safely for new worktrees without copying secrets
-- [ ] Bats tests cover bootstrap, teardown, and guard behavior
+- [x] Bats tests cover bootstrap, teardown, and guard behavior
 - [ ] AGENTS.md documents the required ticket-worktree workflow
 
 ## Subtasks
