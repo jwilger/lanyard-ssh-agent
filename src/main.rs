@@ -15,8 +15,7 @@ use lanyard_ssh_agent::proxy::{Config, serve};
 use tokio::fs::{create_dir_all, remove_file, set_permissions, symlink_metadata};
 use tokio::io::{AsyncBufReadExt as _, AsyncWriteExt as _, BufReader};
 use tokio::net::{UnixListener, UnixStream};
-use tokio::signal::ctrl_c;
-use tokio::signal::unix::{SignalKind, signal};
+use tokio::signal::unix::{Signal, SignalKind, signal};
 
 #[derive(Debug, Parser)]
 #[command(name = "lanyard-ssh-agent", version, about)]
@@ -87,17 +86,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
 }
 
 async fn run_proxy(socket: &Path, control_path: &Path, upstream: PathBuf) -> io::Result<()> {
+    let shutdown_signals = InstalledShutdownSignals::install()?;
+    run_proxy_with_signals(socket, control_path, upstream, shutdown_signals).await
+}
+
+async fn run_proxy_with_signals(
+    socket: &Path,
+    control_path: &Path,
+    upstream: PathBuf,
+    shutdown_signals: InstalledShutdownSignals,
+) -> io::Result<()> {
     prepare_socket_parent(socket).await?;
     prepare_socket_parent(control_path).await?;
     let _instance_lock = acquire_instance_lock(socket)?;
-    let listener = bind_owned_socket(socket).await?;
-    let control_listener = match bind_owned_socket(control_path).await {
-        Ok(bound_control_listener) => bound_control_listener,
-        Err(error) => {
-            let _cleanup_result = remove_file(socket).await;
-            return Err(error);
-        }
-    };
+    let (listener, control_listener) =
+        bind_daemon_sockets(socket, control_path, &shutdown_signals).await?;
     if let Err(error) = set_permissions(socket, Permissions::from_mode(0o600)).await {
         cleanup_startup_sockets(socket, control_path).await;
         return Err(error);
@@ -113,7 +116,7 @@ async fn run_proxy(socket: &Path, control_path: &Path, upstream: PathBuf) -> io:
     let result = tokio::select! {
         proxy_result = serve(listener, config) => proxy_result,
         control_result = serve_control(control_listener, registry, vec![PathBuf::from("/tmp")]) => control_result,
-        signal_result = shutdown_signal() => signal_result,
+        signal_result = shutdown_signals.wait() => signal_result,
     };
     let cleanup_result = remove_file(socket).await;
     let control_cleanup_result = remove_file(control_path).await;
@@ -228,11 +231,39 @@ async fn bind_owned_socket(socket: &Path) -> io::Result<UnixListener> {
     }
 }
 
-async fn shutdown_signal() -> io::Result<()> {
-    let mut terminate = signal(SignalKind::terminate())?;
-    tokio::select! {
-        interrupt_result = ctrl_c() => interrupt_result,
-        _termination = terminate.recv() => Ok(()),
+async fn bind_daemon_sockets(
+    agent_path: &Path,
+    control_path: &Path,
+    _shutdown_signals: &InstalledShutdownSignals,
+) -> io::Result<(UnixListener, UnixListener)> {
+    let agent = bind_owned_socket(agent_path).await?;
+    match bind_owned_socket(control_path).await {
+        Ok(control) => Ok((agent, control)),
+        Err(error) => {
+            let _cleanup_result = remove_file(agent_path).await;
+            Err(error)
+        }
+    }
+}
+
+struct InstalledShutdownSignals {
+    interrupt: Signal,
+    terminate: Signal,
+}
+
+impl InstalledShutdownSignals {
+    fn install() -> io::Result<Self> {
+        Ok(Self {
+            interrupt: signal(SignalKind::interrupt())?,
+            terminate: signal(SignalKind::terminate())?,
+        })
+    }
+
+    async fn wait(mut self) -> io::Result<()> {
+        tokio::select! {
+            _interrupt = self.interrupt.recv() => Ok(()),
+            _termination = self.terminate.recv() => Ok(()),
+        }
     }
 }
 
@@ -264,4 +295,49 @@ fn runtime_directory() -> io::Result<PathBuf> {
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
         .ok_or_else(|| io::Error::new(ErrorKind::NotFound, "XDG_RUNTIME_DIR is not set"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{InstalledShutdownSignals, bind_daemon_sockets, run_proxy_with_signals};
+    use std::error::Error;
+    use std::fs;
+    use std::os::unix::fs::FileTypeExt as _;
+    use std::os::unix::net::UnixListener as StdUnixListener;
+    use std::process::{Command, id};
+
+    #[tokio::test]
+    async fn socket_binding_requires_installed_shutdown_signals() -> Result<(), Box<dyn Error>> {
+        let directory = tempfile::tempdir()?;
+        let agent = directory.path().join("agent.sock");
+        let control = directory.path().join("control.sock");
+        let signals = InstalledShutdownSignals::install()?;
+
+        let _sockets = bind_daemon_sockets(&agent, &control, &signals).await?;
+
+        assert!(fs::symlink_metadata(agent)?.file_type().is_socket());
+        assert!(fs::symlink_metadata(control)?.file_type().is_socket());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn queued_sigterm_before_socket_publication_cleans_owned_sockets()
+    -> Result<(), Box<dyn Error>> {
+        let directory = tempfile::tempdir()?;
+        let agent = directory.path().join("agent.sock");
+        let control = directory.path().join("control.sock");
+        let upstream = directory.path().join("upstream.sock");
+        let _upstream = StdUnixListener::bind(&upstream)?;
+        let signals = InstalledShutdownSignals::install()?;
+        let signal_status = Command::new("kill")
+            .args(["-TERM", &id().to_string()])
+            .status()?;
+        assert!(signal_status.success());
+
+        run_proxy_with_signals(&agent, &control, upstream, signals).await?;
+
+        assert!(!agent.exists());
+        assert!(!control.exists());
+        Ok(())
+    }
 }

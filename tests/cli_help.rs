@@ -91,6 +91,7 @@ fn serve_recovers_a_stale_socket() -> Result<(), Box<dyn Error>> {
     let upstream = directory.path().join("upstream.sock");
     let socket_directory = runtime.join("lanyard-ssh-agent");
     let socket = socket_directory.join("agent.sock");
+    let control = socket_directory.join("control.sock");
     fs::create_dir_all(&socket_directory)?;
     let stale_listener = UnixListener::bind(&socket)?;
     drop(stale_listener);
@@ -111,6 +112,7 @@ fn serve_recovers_a_stale_socket() -> Result<(), Box<dyn Error>> {
     assert!(signal_status.success());
     assert!(daemon.wait()?.success());
     assert!(!socket.exists());
+    assert!(!control.exists());
     Ok(())
 }
 
