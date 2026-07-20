@@ -117,6 +117,46 @@ printf '%s' "$CRATE_STATUS"
     ))
 }
 
+fn run_stage_release(existing: &str) -> Result<(Output, String), Box<dyn Error>> {
+    let sandbox = tempfile::tempdir()?;
+    let bin = sandbox.path().join("bin");
+    let artifacts = sandbox.path().join("artifacts");
+    fs::create_dir_all(&bin)?;
+    fs::create_dir_all(&artifacts)?;
+    fs::write(artifacts.join("lanyard.tar.xz"), "artifact")?;
+    let command_log = sandbox.path().join("commands.log");
+    write_executable(
+        &bin.join("gh"),
+        r#"#!/usr/bin/env bash
+set -euo pipefail
+printf 'gh %s\n' "$*" >> "$COMMAND_LOG"
+if [[ "$*" == "release view "* ]]; then
+  case "$EXISTING_RELEASE" in
+    missing) exit 1 ;;
+    draft) printf '%s\n' true ;;
+    public) printf '%s\n' false ;;
+  esac
+fi
+"#,
+    )?;
+    let path = format!(
+        "{}:{}",
+        bin.display(),
+        env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".to_owned())
+    );
+    let output = Command::new("bash")
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/stage-release.sh"))
+        .current_dir(sandbox.path())
+        .env("PATH", path)
+        .env("COMMAND_LOG", &command_log)
+        .env("EXISTING_RELEASE", existing)
+        .env("RELEASE_TAG", "v1.2.3")
+        .env("RELEASE_COMMIT", "release-sha")
+        .env("ARTIFACT_DIR", &artifacts)
+        .output()?;
+    Ok((output, fs::read_to_string(command_log).unwrap_or_default()))
+}
+
 #[expect(
     clippy::pattern_type_mismatch,
     reason = "match ergonomics keep the recursive YAML traversal readable"
@@ -546,6 +586,44 @@ fn release_state_transitions_are_fail_closed_and_idempotent() -> Result<(), Box<
         run_release_state(false, "503", false, "", false)?;
     assert!(!registry_error.status.success());
     assert!(registry_error_outputs.contains("publishing=false"));
+    Ok(())
+}
+
+#[test]
+fn verified_artifacts_are_staged_in_a_draft_release() -> Result<(), Box<dyn Error>> {
+    let release = workflow(".github/workflows/release.yml")?;
+    let host = release
+        .get("jobs")
+        .and_then(|jobs| jobs.get("host"))
+        .ok_or("release workflow must define an artifact host job")?;
+    let mut scripts = Vec::new();
+    values_for_key(host, "run", &mut scripts);
+    assert!(scripts.contains(&"scripts/stage-release.sh"));
+    let host_script = read("scripts/stage-release.sh")?;
+
+    assert!(host_script.contains("--draft"));
+    assert!(host_script.contains("gh release upload"));
+    assert!(host_script.contains("--clobber"));
+    assert!(!host_script.contains("dist host"));
+    Ok(())
+}
+
+#[test]
+fn draft_release_staging_is_retryable_but_never_accepts_a_public_release()
+-> Result<(), Box<dyn Error>> {
+    let (missing, missing_log) = run_stage_release("missing")?;
+    assert!(missing.status.success());
+    assert!(missing_log.contains("release create v1.2.3 --draft"));
+    assert!(missing_log.contains("release upload v1.2.3"));
+
+    let (draft, draft_log) = run_stage_release("draft")?;
+    assert!(draft.status.success());
+    assert!(!draft_log.contains("release create"));
+    assert!(draft_log.contains("release upload v1.2.3"));
+
+    let (public, public_log) = run_stage_release("public")?;
+    assert!(!public.status.success());
+    assert!(!public_log.contains("release upload"));
     Ok(())
 }
 
