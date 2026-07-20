@@ -1,5 +1,7 @@
 # tiber local working copy
 .tasks
+.worktrees/
+.env.worktree
 .dependencies/
 /target/
 /result

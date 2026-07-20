@@ -160,12 +160,15 @@
           devShells.default = pkgs.mkShell {
             packages = with pkgs; [
               actionlint
+              bats
               cargo-deny
               cargo-mutants
               git
               just
               nixfmt-tree
               openssh
+              rsync
+              shellcheck
               toolchain
             ];
             shellHook = ''

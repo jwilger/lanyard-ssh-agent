@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const port = "4327";
+const port = process.env.LANYARD_SITE_PORT ?? "4327";
 
 export default defineConfig({
   testDir: "tests/browser",

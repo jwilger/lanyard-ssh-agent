@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(git rev-parse --show-toplevel)"
+if [ -x "$root/scripts/worktree-warm.sh" ]; then
+  exec "$root/scripts/worktree-warm.sh" "$root"
+fi
