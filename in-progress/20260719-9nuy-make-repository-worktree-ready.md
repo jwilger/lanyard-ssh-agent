@@ -30,3 +30,5 @@ Use the worktrees plugin's project-specific setup. Integrate the confirmed comma
 ## Subtasks
 
 ## Notes / Log
+
+- 2026-07-20: Delivered directly to origin/main in signed commit 974ced6bb92efcd0039bed5550b3dbbb494fce69 (no remote topic branch or PR). Added isolated lifecycle commands and guards, safe cache warming, kernel-managed crash-safe port locking, consistent categorical trunk-publication docs, and 24 Bats tests. Local full gate, Nix flake, Playwright 8/8, formal final review, and exact pushed GitHub CI/Release/Pages/Tiber workflows all passed.
