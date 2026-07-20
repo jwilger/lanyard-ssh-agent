@@ -27,3 +27,5 @@ Successful changes on main currently do not reliably produce a release. The conf
 ## Subtasks
 
 ## Notes / Log
+
+- 2026-07-20: Implementation notes: use release-plz 0.3.159 for natural version calculation. Keep the trunk-based state machine idempotent, preserve signed commits and tags, publish checksummed x86_64 and aarch64 Linux archives, stage GitHub as a draft, publish crates.io, and make GitHub public last.
