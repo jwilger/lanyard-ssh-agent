@@ -21,7 +21,7 @@ Final-review finding production-risk-footguns-002 from 20260719-bebi.
 ## Acceptance criteria
 
 - [x] The E2E does not rely on an unreserved bind-to-zero port remaining free until sshd starts
-- [ ] A regression test or deterministic harness assertion covers port-claim retry/reservation behavior
+- [x] A regression test or deterministic harness assertion covers port-claim retry/reservation behavior
 
 ## Subtasks
 
