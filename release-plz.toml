@@ -1,8 +1,8 @@
 [workspace]
 changelog_update = true
 git_release_enable = false
-git_tag_enable = true
-publish = true
+git_tag_enable = false
+publish = false
 semver_check = true
 
 [[package]]

@@ -286,6 +286,35 @@ jobs:
           RELEASE_COMMIT: "${{ github.sha }}"
         run: scripts/stage-release.sh
 
+  publish-crate:
+    needs:
+      - plan
+      - host
+    if: ${{ always() && needs.plan.outputs.publishing == 'true' && needs.host.result == 'success' }}
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+      - name: Cache cargo dependencies
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - name: Load crates.io credential
+        id: publish-secrets
+        uses: 1password/load-secrets-action@3a12b0ab99d9cd590a3e9b5a90ea017210ed9556 # v4
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          CARGO_REGISTRY_TOKEN: op://Github Secrets/CARGO_REGISTRY_TOKEN/credential
+      - name: Publish crate after artifacts are staged
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.publish-secrets.outputs.CARGO_REGISTRY_TOKEN }}
+          RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+        run: scripts/publish-crate.sh
+
   announce:
     needs:
       - plan

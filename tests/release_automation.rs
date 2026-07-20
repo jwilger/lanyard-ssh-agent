@@ -158,6 +158,65 @@ fi
 }
 
 #[expect(
+    clippy::literal_string_with_formatting_args,
+    reason = "the literal contains Bash parameter expansion, not Rust formatting"
+)]
+fn run_publish_crate(
+    statuses: &str,
+    manifest_version: &str,
+    publish_fails: bool,
+) -> Result<(Output, String), Box<dyn Error>> {
+    let sandbox = tempfile::tempdir()?;
+    let bin = sandbox.path().join("bin");
+    fs::create_dir_all(&bin)?;
+    let command_log = sandbox.path().join("commands.log");
+    let status_file = sandbox.path().join("statuses");
+    fs::write(&status_file, statuses)?;
+    write_executable(
+        &bin.join("curl"),
+        r#"#!/usr/bin/env bash
+set -euo pipefail
+printf 'curl %s\n' "$*" >> "$COMMAND_LOG"
+status="$(head -n 1 "$STATUS_FILE")"
+tail -n +2 "$STATUS_FILE" > "$STATUS_FILE.next"
+mv "$STATUS_FILE.next" "$STATUS_FILE"
+printf '%s' "$status"
+"#,
+    )?;
+    write_executable(
+        &bin.join("cargo"),
+        r#"#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${1:-}" == metadata ]]; then
+  printf '{"packages":[{"name":"lanyard-ssh-agent","version":"%s"}]}\n' "$MANIFEST_VERSION"
+  exit 0
+fi
+printf 'cargo %s token=%s\n' "$*" "${CARGO_REGISTRY_TOKEN:+set}" >> "$COMMAND_LOG"
+test "${PUBLISH_FAIL:-0}" != 1
+"#,
+    )?;
+    let path = format!(
+        "{}:{}",
+        bin.display(),
+        env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".to_owned())
+    );
+    let output = Command::new("bash")
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/publish-crate.sh"))
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .env("PATH", path)
+        .env("COMMAND_LOG", &command_log)
+        .env("STATUS_FILE", status_file)
+        .env("RELEASE_TAG", "v1.2.3")
+        .env("MANIFEST_VERSION", manifest_version)
+        .env("PUBLISH_FAIL", if publish_fails { "1" } else { "0" })
+        .env("CARGO_REGISTRY_TOKEN", "test-token")
+        .env("PUBLISH_POLL_ATTEMPTS", "3")
+        .env("PUBLISH_POLL_DELAY_SECONDS", "0")
+        .output()?;
+    Ok((output, fs::read_to_string(command_log).unwrap_or_default()))
+}
+
+#[expect(
     clippy::pattern_type_mismatch,
     reason = "match ergonomics keep the recursive YAML traversal readable"
 )]
@@ -313,7 +372,7 @@ fn crate_manifest_is_ready_for_crates_io() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn release_plz_publishes_then_leaves_the_github_release_to_dist() -> Result<(), Box<dyn Error>> {
+fn release_plz_only_prepares_release_metadata() -> Result<(), Box<dyn Error>> {
     let config = release_plz_config()?;
     let workspace = config
         .get("workspace")
@@ -326,10 +385,13 @@ fn release_plz_publishes_then_leaves_the_github_release_to_dist() -> Result<(), 
         .and_then(Toml::as_table)
         .ok_or("release-plz must configure the distributable package")?;
 
-    assert_eq!(workspace.get("publish").and_then(Toml::as_bool), Some(true));
+    assert_eq!(
+        workspace.get("publish").and_then(Toml::as_bool),
+        Some(false)
+    );
     assert_eq!(
         workspace.get("git_tag_enable").and_then(Toml::as_bool),
-        Some(true)
+        Some(false)
     );
     assert_eq!(
         workspace.get("git_release_enable").and_then(Toml::as_bool),
@@ -624,6 +686,68 @@ fn draft_release_staging_is_retryable_but_never_accepts_a_public_release()
     let (public, public_log) = run_stage_release("public")?;
     assert!(!public.status.success());
     assert!(!public_log.contains("release upload"));
+    Ok(())
+}
+
+#[test]
+fn draft_release_precedes_idempotent_crates_io_publication() -> Result<(), Box<dyn Error>> {
+    let release = workflow(".github/workflows/release.yml")?;
+    let jobs = release
+        .get("jobs")
+        .ok_or("release workflow must define jobs")?;
+    let publish = jobs
+        .get("publish-crate")
+        .ok_or("release workflow must publish the crate")?;
+    let dependencies = publish
+        .get("needs")
+        .and_then(Yaml::as_sequence)
+        .ok_or("crate publication must declare dependencies")?;
+    assert!(dependencies.contains(&Yaml::String("host".to_owned())));
+
+    let mut scripts = Vec::new();
+    values_for_key(publish, "run", &mut scripts);
+    assert!(scripts.contains(&"scripts/publish-crate.sh"));
+    let mut secrets = Vec::new();
+    values_for_key(publish, "CARGO_REGISTRY_TOKEN", &mut secrets);
+    assert_eq!(
+        secrets
+            .iter()
+            .filter(|value| value.starts_with("op://"))
+            .copied()
+            .collect::<Vec<_>>(),
+        ["op://Github Secrets/CARGO_REGISTRY_TOKEN/credential"]
+    );
+
+    let (version_mismatch, version_mismatch_log) = run_publish_crate("200\n", "9.9.9", false)?;
+    assert!(!version_mismatch.status.success());
+    assert!(version_mismatch_log.is_empty());
+
+    let (already_published, already_published_log) = run_publish_crate("200\n", "1.2.3", false)?;
+    assert!(already_published.status.success());
+    assert!(!already_published_log.contains("cargo publish"));
+
+    let (published, published_log) = run_publish_crate("404\n404\n200\n", "1.2.3", false)?;
+    assert!(
+        published.status.success(),
+        "{}",
+        String::from_utf8_lossy(&published.stderr)
+    );
+    assert!(published_log.contains("cargo publish --locked token=set"));
+    assert!(!published_log.contains("test-token"));
+
+    let (ambiguous_publish, ambiguous_publish_log) =
+        run_publish_crate("404\n200\n", "1.2.3", true)?;
+    assert!(ambiguous_publish.status.success());
+    assert_eq!(ambiguous_publish_log.matches("cargo publish").count(), 1);
+
+    let (registry_error, registry_error_log) = run_publish_crate("503\n", "1.2.3", false)?;
+    assert!(!registry_error.status.success());
+    assert!(!registry_error_log.contains("cargo publish"));
+
+    let (never_visible, never_visible_log) =
+        run_publish_crate("404\n404\n404\n404\n", "1.2.3", false)?;
+    assert!(!never_visible.status.success());
+    assert_eq!(never_visible_log.matches("cargo publish").count(), 1);
     Ok(())
 }
 
