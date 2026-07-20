@@ -806,8 +806,16 @@ fn release_state_transitions_are_fail_closed_and_idempotent() -> Result<(), Box<
     assert!(unpublished_outputs.contains("publishing=true"));
     assert!(unpublished_outputs.contains("tag=v1.2.3"));
 
-    let (retry, retry_log, retry_outputs) =
-        run_release_state(false, "404", "404", "false", true, "release-sha", false, None)?;
+    let (retry, retry_log, retry_outputs) = run_release_state(
+        false,
+        "404",
+        "404",
+        "false",
+        true,
+        "release-sha",
+        false,
+        None,
+    )?;
     assert!(retry.status.success());
     assert!(retry_log.contains("verify-tag v1.2.3"));
     assert!(!retry_log.contains("tag -s -a"));
@@ -820,8 +828,16 @@ fn release_state_transitions_are_fail_closed_and_idempotent() -> Result<(), Box<
     assert!(older_tag_outputs.contains("publishing=true"));
     assert!(older_tag_outputs.contains("release-commit=other-sha"));
 
-    let (invalid_signature, invalid_log, invalid_outputs) =
-        run_release_state(false, "404", "404", "false", true, "release-sha", true, None)?;
+    let (invalid_signature, invalid_log, invalid_outputs) = run_release_state(
+        false,
+        "404",
+        "404",
+        "false",
+        true,
+        "release-sha",
+        true,
+        None,
+    )?;
     assert!(!invalid_signature.status.success());
     assert!(!invalid_log.contains("push origin refs/tags/"));
     assert!(invalid_outputs.contains("publishing=false"));
@@ -835,8 +851,16 @@ fn release_state_transitions_are_fail_closed_and_idempotent() -> Result<(), Box<
 
 #[test]
 fn published_crate_resumes_incomplete_github_release() -> Result<(), Box<dyn Error>> {
-    let (published, published_log, published_outputs) =
-        run_release_state(false, "200", "200", "false", true, "old-release-sha", false, None)?;
+    let (published, published_log, published_outputs) = run_release_state(
+        false,
+        "200",
+        "200",
+        "false",
+        true,
+        "old-release-sha",
+        false,
+        None,
+    )?;
     assert!(published.status.success());
     assert!(!published_log.contains("tag -s"));
     assert!(published_log.contains("verify-tag v1.2.3"));
@@ -864,14 +888,30 @@ fn published_crate_resumes_incomplete_github_release() -> Result<(), Box<dyn Err
         assert!(invalid_public_outputs.contains("publishing=false"));
     }
 
-    let (draft_release, _, draft_release_outputs) =
-        run_release_state(false, "200", "200", "true", true, "old-release-sha", false, None)?;
+    let (draft_release, _, draft_release_outputs) = run_release_state(
+        false,
+        "200",
+        "200",
+        "true",
+        true,
+        "old-release-sha",
+        false,
+        None,
+    )?;
     assert!(draft_release.status.success());
     assert!(draft_release_outputs.contains("publishing=true"));
     assert!(draft_release_outputs.contains("release-commit=old-release-sha"));
 
-    let (missing_release, _, missing_release_outputs) =
-        run_release_state(false, "200", "404", "false", true, "old-release-sha", false, None)?;
+    let (missing_release, _, missing_release_outputs) = run_release_state(
+        false,
+        "200",
+        "404",
+        "false",
+        true,
+        "old-release-sha",
+        false,
+        None,
+    )?;
     assert!(missing_release.status.success());
     assert!(missing_release_outputs.contains("publishing=true"));
     assert!(missing_release_outputs.contains("release-commit=old-release-sha"));
@@ -883,8 +923,16 @@ fn published_crate_resumes_incomplete_github_release() -> Result<(), Box<dyn Err
     assert!(missing_tag_outputs.contains("publishing=false"));
 
     for (status, draft) in [("503", "false"), ("200", "null")] {
-        let (invalid_release, _, invalid_release_outputs) =
-            run_release_state(false, "200", status, draft, true, "release-sha", false, None)?;
+        let (invalid_release, _, invalid_release_outputs) = run_release_state(
+            false,
+            "200",
+            status,
+            draft,
+            true,
+            "release-sha",
+            false,
+            None,
+        )?;
         assert!(!invalid_release.status.success());
         assert!(invalid_release_outputs.contains("publishing=false"));
     }
@@ -1005,8 +1053,7 @@ fn release_recovery_detection_is_fail_closed_for_external_states() -> Result<(),
         ("200", "200", "null", false, None),
     ];
     for (crate_status, github_status, draft, succeeds, recovering) in cases {
-        let (output, _, outputs) =
-            run_recovery_detection(crate_status, github_status, draft)?;
+        let (output, _, outputs) = run_recovery_detection(crate_status, github_status, draft)?;
         assert_eq!(
             output.status.success(),
             succeeds,
