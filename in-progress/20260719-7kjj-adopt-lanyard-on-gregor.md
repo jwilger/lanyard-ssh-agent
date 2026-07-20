@@ -26,3 +26,5 @@ Integrate the released Home Manager module into gregor's separate NixOS configur
 ## Subtasks
 
 ## Notes / Log
+
+- 2026-07-20: Configuration merged in nixos-config PR #9 (merge 0a0fcdf7): Lanyard v0.1.0 pinned; gregor Home Manager module enabled; stable SSH_AUTH_SOCK enforced; 1Password retained as service fallback. Independent review clean. nixfmt hook, git diff --check, full nix flake check, and nixos-rebuild dry-run --flake .#gregor all pass. Runtime activation and real local/forwarded Zellij validation remain.
