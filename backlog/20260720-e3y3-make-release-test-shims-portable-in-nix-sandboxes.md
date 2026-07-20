@@ -17,6 +17,8 @@ nix flake check rebuilds the package after any source change. Eleven release_aut
 
 ## Acceptance criteria
 
+- [ ] Runtime-generated release test shims use a shell path available in pure Nix builds
+
 ## Subtasks
 
 ## Notes / Log
