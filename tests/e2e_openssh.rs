@@ -39,6 +39,47 @@ enum AgentRequest {
     Extension(Vec<u8>),
 }
 
+enum StartAttempt<T> {
+    Started(T),
+    Contended(io::Error),
+}
+
+fn retry_contended_start<T>(
+    maximum_attempts: u8,
+    mut attempt: impl FnMut() -> io::Result<StartAttempt<T>>,
+) -> io::Result<T> {
+    let mut last_contention = None;
+    for _attempt_index in 0..maximum_attempts {
+        match attempt()? {
+            StartAttempt::Started(started) => return Ok(started),
+            StartAttempt::Contended(error) => last_contention = Some(error),
+        }
+    }
+    Err(last_contention.unwrap_or_else(|| {
+        io::Error::new(ErrorKind::InvalidInput, "at least one start attempt is required")
+    }))
+}
+
+#[test]
+fn retries_when_an_sshd_port_candidate_is_claimed() -> io::Result<()> {
+    let mut attempts = 0_u8;
+
+    let selected = retry_contended_start(3, || {
+        attempts = attempts.saturating_add(1);
+        if attempts == 1 {
+            return Ok(StartAttempt::Contended(io::Error::new(
+                ErrorKind::AddrInUse,
+                "injected loopback port claimant",
+            )));
+        }
+        Ok(StartAttempt::Started(22_u16))
+    })?;
+
+    assert_eq!(selected, 22);
+    assert_eq!(attempts, 2);
+    Ok(())
+}
+
 #[test]
 #[ignore = "run once through `just e2e`; external processes are too expensive for mutation runs"]
 fn authenticates_and_signs_through_lanyard() -> Result<(), Box<dyn Error>> {
