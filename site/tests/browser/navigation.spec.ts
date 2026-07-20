@@ -31,14 +31,14 @@ test("the homepage does not overflow the viewport horizontally", async ({
   expect(widths.content).toBeLessThanOrEqual(widths.viewport);
 });
 
-test("the architecture diagram keeps destination labels distinct", async ({
+test("the architecture diagram stacks destination labels on distinct lines", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.goto("docs/architecture/");
 
   const labels = page.locator(".route-diagram .destinations text");
-  const gaps = await labels.evaluateAll((elements) => {
+  const verticalGaps = await labels.evaluateAll((elements) => {
     if (elements.length !== 3) return [Number.NEGATIVE_INFINITY];
 
     const pairs = elements.slice(0, -1).map((element, index) => ({
@@ -49,13 +49,13 @@ test("the architecture diagram keeps destination labels distinct", async ({
     return pairs.flatMap(({ current, previous }) => {
       if (current === undefined) return [];
       return [
-        current.getBoundingClientRect().left -
-          previous.getBoundingClientRect().right,
+        current.getBoundingClientRect().top -
+          previous.getBoundingClientRect().bottom,
       ];
     });
   });
 
-  expect(Math.min(...gaps)).toBeGreaterThanOrEqual(8);
+  expect(Math.min(...verticalGaps)).toBeGreaterThanOrEqual(4);
 });
 
 test("the manual is navigable and has no detectable accessibility violations", async ({
