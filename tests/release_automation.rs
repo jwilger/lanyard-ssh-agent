@@ -1,6 +1,12 @@
 //! Regression tests for release and deployment configuration.
 
-use std::{error::Error, fs, io, path::Path};
+use std::{
+    error::Error,
+    fs, io,
+    os::unix::fs::PermissionsExt,
+    path::Path,
+    process::{Command, Output},
+};
 
 use serde_yaml::Value as Yaml;
 use toml::Value as Toml;
@@ -21,6 +27,89 @@ fn release_plz_config() -> Result<Toml, Box<dyn Error>> {
 
 fn workflow(path: &str) -> Result<Yaml, Box<dyn Error>> {
     Ok(serde_yaml::from_str(&read(path)?)?)
+}
+
+fn write_executable(path: &Path, source: &str) -> Result<(), Box<dyn Error>> {
+    fs::write(path, source)?;
+    let mut permissions = fs::metadata(path)?.permissions();
+    permissions.set_mode(0o700);
+    fs::set_permissions(path, permissions)?;
+    Ok(())
+}
+
+fn run_release_state(
+    dirty: bool,
+    crate_status: &str,
+    tag_exists: bool,
+    tag_sha: &str,
+    verify_fails: bool,
+) -> Result<(Output, String, String), Box<dyn Error>> {
+    let sandbox = tempfile::tempdir()?;
+    let bin = sandbox.path().join("bin");
+    fs::create_dir(&bin)?;
+    let command_log = sandbox.path().join("commands.log");
+    let github_output = sandbox.path().join("github-output");
+    write_executable(
+        &bin.join("git"),
+        r#"#!/usr/bin/env bash
+set -euo pipefail
+printf 'git %s\n' "$*" >> "$COMMAND_LOG"
+case "$*" in
+  "diff --cached --quiet") test "${DIRTY:-0}" != 1 ;;
+  "rev-parse --verify --quiet refs/tags/"*"^{commit}")
+    test "${TAG_EXISTS:-0}" = 1 && printf '%s\n' "${TAG_SHA:-release-sha}"
+    ;;
+  "rev-parse refs/tags/"*"^{commit}") printf '%s\n' "${TAG_SHA:-release-sha}" ;;
+  "rev-parse HEAD") printf '%s\n' release-sha ;;
+  "verify-tag "*) test "${VERIFY_FAIL:-0}" != 1 ;;
+esac
+"#,
+    )?;
+    write_executable(
+        &bin.join("cargo"),
+        r#"#!/usr/bin/env bash
+printf '%s\n' '{"packages":[{"name":"lanyard-ssh-agent","version":"1.2.3"}]}'
+"#,
+    )?;
+    write_executable(
+        &bin.join("curl"),
+        r#"#!/usr/bin/env bash
+printf 'curl %s\n' "$*" >> "$COMMAND_LOG"
+printf '%s' "$CRATE_STATUS"
+"#,
+    )?;
+    write_executable(
+        &bin.join("ssh-keygen"),
+        "#!/usr/bin/env bash\nprintf '%s\\n' 'ssh-ed25519 AAAATEST'\n",
+    )?;
+
+    let path = format!(
+        "{}:{}",
+        bin.display(),
+        std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".to_owned())
+    );
+    let output = Command::new("bash")
+        .arg("scripts/prepare-release.sh")
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .env("PATH", path)
+        .env("COMMAND_LOG", &command_log)
+        .env("GITHUB_OUTPUT", &github_output)
+        .env("RUNNER_TEMP", sandbox.path())
+        .env("DIRTY", if dirty { "1" } else { "0" })
+        .env("CRATE_STATUS", crate_status)
+        .env("TAG_EXISTS", if tag_exists { "1" } else { "0" })
+        .env("TAG_SHA", tag_sha)
+        .env("VERIFY_FAIL", if verify_fails { "1" } else { "0" })
+        .env("GH_RELEASE_AUTOMATION_TOKEN", "test-token")
+        .env("RELEASE_SIGNING_KEY", "test-private-key")
+        .env("RELEASE_SIGNING_NAME", "Release Bot")
+        .env("RELEASE_SIGNING_EMAIL", "release@example.com")
+        .output()?;
+    Ok((
+        output,
+        fs::read_to_string(command_log).unwrap_or_default(),
+        fs::read_to_string(github_output).unwrap_or_default(),
+    ))
 }
 
 #[expect(
@@ -284,22 +373,6 @@ fn releases_have_one_main_branch_entrypoint() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn main_branch_entrypoint_does_not_execute_the_legacy_tag_pipeline() -> Result<(), Box<dyn Error>> {
-    let release = workflow(".github/workflows/release.yml")?;
-    let plan_condition = release
-        .get("jobs")
-        .and_then(|jobs| jobs.get("plan"))
-        .and_then(|plan| plan.get("if"))
-        .and_then(Yaml::as_str);
-
-    assert_eq!(
-        plan_condition,
-        Some("${{ github.event_name == 'pull_request' }}")
-    );
-    Ok(())
-}
-
-#[test]
 fn release_preparation_updates_main_without_a_release_pr() -> Result<(), Box<dyn Error>> {
     let release = workflow(".github/workflows/release.yml")?;
     let concurrency = release
@@ -357,6 +430,7 @@ fn release_preparation_updates_main_without_a_release_pr() -> Result<(), Box<dyn
     let mut scripts = Vec::new();
     values_for_key(prepare, "command", &mut commands);
     values_for_key(prepare, "run", &mut scripts);
+    let state_script = read("scripts/prepare-release.sh")?;
 
     assert_eq!(commands, ["update"]);
     let step_names = prepare
@@ -375,12 +449,98 @@ fn release_preparation_updates_main_without_a_release_pr() -> Result<(), Box<dyn
         .position(|name| *name == "Configure signing and push release preparation commit")
         .ok_or("scoped signing step is missing")?;
     assert!(update_index < signing_index);
-    assert!(scripts.iter().any(|script| {
-        script.contains("git commit -S")
-            && script.contains("push origin HEAD:main")
-            && !script.contains("--force")
-    }));
+    assert!(state_script.contains("git commit -S"));
+    assert!(state_script.contains("push origin HEAD:main"));
+    assert!(!state_script.contains("--force"));
     assert!(!read(".github/workflows/release.yml")?.contains("release-pr"));
+    Ok(())
+}
+
+#[test]
+fn only_an_unpublished_version_enters_the_artifact_pipeline() -> Result<(), Box<dyn Error>> {
+    let release = workflow(".github/workflows/release.yml")?;
+    let jobs = release
+        .get("jobs")
+        .ok_or("release workflow must define jobs")?;
+    let prepare = jobs
+        .get("prepare-release")
+        .ok_or("release workflow must prepare releases")?;
+    let plan = jobs
+        .get("plan")
+        .ok_or("release workflow must plan artifacts")?;
+    let mut scripts = Vec::new();
+    values_for_key(prepare, "run", &mut scripts);
+    assert!(scripts.contains(&"scripts/prepare-release.sh"));
+    let state_script = read("scripts/prepare-release.sh")?;
+
+    assert!(state_script.contains("--retry-all-errors"));
+    assert!(state_script.contains("--connect-timeout"));
+    assert!(state_script.contains("--max-time"));
+    assert!(state_script.contains("git tag -s"));
+    assert!(state_script.contains("push origin refs/tags/"));
+    assert_eq!(
+        prepare
+            .get("outputs")
+            .and_then(|outputs| outputs.get("publishing"))
+            .and_then(Yaml::as_str),
+        Some("${{ steps.release-state.outputs.publishing }}")
+    );
+    assert_eq!(
+        plan.get("if").and_then(Yaml::as_str),
+        Some("${{ needs.prepare-release.outputs.publishing == 'true' }}")
+    );
+    Ok(())
+}
+
+#[test]
+fn release_state_transitions_are_fail_closed_and_idempotent() -> Result<(), Box<dyn Error>> {
+    let (dirty, dirty_log, dirty_outputs) = run_release_state(true, "404", false, "", false)?;
+    assert!(
+        dirty.status.success(),
+        "{}",
+        String::from_utf8_lossy(&dirty.stderr)
+    );
+    assert!(dirty_log.contains("commit -S -m chore(release): prepare v1.2.3"));
+    assert!(dirty_log.contains("push origin HEAD:main"));
+    assert!(!dirty_log.contains("curl "));
+    assert!(dirty_outputs.contains("publishing=false"));
+
+    let (published, published_log, published_outputs) =
+        run_release_state(false, "200", false, "", false)?;
+    assert!(published.status.success());
+    assert!(!published_log.contains("tag -s"));
+    assert!(published_outputs.contains("publishing=false"));
+
+    let (unpublished, unpublished_log, unpublished_outputs) =
+        run_release_state(false, "404", false, "", false)?;
+    assert!(unpublished.status.success());
+    assert!(unpublished_log.contains("tag -s -a v1.2.3"));
+    assert!(unpublished_log.contains("push origin refs/tags/v1.2.3"));
+    assert!(unpublished_outputs.contains("publishing=true"));
+    assert!(unpublished_outputs.contains("tag=v1.2.3"));
+
+    let (retry, retry_log, retry_outputs) =
+        run_release_state(false, "404", true, "release-sha", false)?;
+    assert!(retry.status.success());
+    assert!(retry_log.contains("verify-tag v1.2.3"));
+    assert!(!retry_log.contains("tag -s -a"));
+    assert!(retry_outputs.contains("publishing=true"));
+
+    let (wrong_tag, _, wrong_tag_outputs) =
+        run_release_state(false, "404", true, "other-sha", false)?;
+    assert!(!wrong_tag.status.success());
+    assert!(wrong_tag_outputs.contains("publishing=false"));
+
+    let (invalid_signature, invalid_log, invalid_outputs) =
+        run_release_state(false, "404", true, "release-sha", true)?;
+    assert!(!invalid_signature.status.success());
+    assert!(!invalid_log.contains("push origin refs/tags/"));
+    assert!(invalid_outputs.contains("publishing=false"));
+
+    let (registry_error, _, registry_error_outputs) =
+        run_release_state(false, "503", false, "", false)?;
+    assert!(!registry_error.status.success());
+    assert!(registry_error_outputs.contains("publishing=false"));
     Ok(())
 }
 

@@ -54,6 +54,10 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+    outputs:
+      publishing: ${{ steps.release-state.outputs.publishing }}
+      tag: ${{ steps.release-state.outputs.tag }}
+      tag-flag: ${{ steps.release-state.outputs.tag-flag }}
     steps:
       - name: Load release preparation secrets
         id: release-secrets
@@ -80,45 +84,25 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.release-secrets.outputs.GH_RELEASE_AUTOMATION_TOKEN }}
       - name: Configure signing and push release preparation commit
+        id: release-state
         shell: bash
         env:
           GH_RELEASE_AUTOMATION_TOKEN: ${{ steps.release-secrets.outputs.GH_RELEASE_AUTOMATION_TOKEN }}
           RELEASE_SIGNING_KEY: ${{ steps.release-secrets.outputs.RELEASE_SIGNING_KEY }}
           RELEASE_SIGNING_NAME: ${{ vars.RELEASE_SIGNING_NAME }}
           RELEASE_SIGNING_EMAIL: ${{ vars.RELEASE_SIGNING_EMAIL }}
-        run: |
-          set -euo pipefail
-          git add Cargo.toml Cargo.lock CHANGELOG.md
-          if git diff --cached --quiet; then
-            echo "No release preparation changes"
-            exit 0
-          fi
-          version="$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | select(.name == "lanyard-ssh-agent") | .version')"
-          signing_key_path="$RUNNER_TEMP/release-signing-key"
-          trap 'rm -f "$signing_key_path"' EXIT
-          test -n "$RELEASE_SIGNING_KEY"
-          printf '%s\n' "$RELEASE_SIGNING_KEY" > "$signing_key_path"
-          chmod 600 "$signing_key_path"
-          git config gpg.format ssh
-          git config user.signingkey "$signing_key_path"
-          git config commit.gpgsign true
-          git config user.name "${RELEASE_SIGNING_NAME:-release-plz-bot}"
-          git config user.email "${RELEASE_SIGNING_EMAIL:-release-plz-bot@users.noreply.github.com}"
-          git commit -S -m "chore(release): prepare v${version}"
-          auth="$(printf 'x-access-token:%s' "$GH_RELEASE_AUTOMATION_TOKEN" | base64 -w0)"
-          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth}" push origin HEAD:main
+        run: scripts/prepare-release.sh
 
   # Run 'dist plan' (or host) to determine what tasks we need to do
   plan:
-    # This workflow has no pull_request trigger, so the legacy graph stays inert
-    # until it is replaced by the staged trunk publisher.
-    if: ${{ github.event_name == 'pull_request' }}
+    needs: [prepare-release]
+    if: ${{ needs.prepare-release.outputs.publishing == 'true' }}
     runs-on: "ubuntu-22.04"
     outputs:
       val: ${{ steps.plan.outputs.manifest }}
-      tag: ${{ !github.event.pull_request && github.ref_name || '' }}
-      tag-flag: ${{ !github.event.pull_request && format('--tag={0}', github.ref_name) || '' }}
-      publishing: ${{ !github.event.pull_request }}
+      tag: ${{ needs.prepare-release.outputs.tag }}
+      tag-flag: ${{ needs.prepare-release.outputs.tag-flag }}
+      publishing: ${{ needs.prepare-release.outputs.publishing }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -139,8 +123,9 @@ jobs:
       - id: plan
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
         run: |
-          dist ${{ (!github.event.pull_request && format('host --steps=create --tag={0}', github.ref_name)) || 'plan' }} --output-format=json > plan-dist-manifest.json
+          dist host --steps=create --tag="$RELEASE_TAG" --output-format=json > plan-dist-manifest.json
           echo "dist ran successfully"
           cat plan-dist-manifest.json
           echo "manifest=$(jq -c "." plan-dist-manifest.json)" >> "$GITHUB_OUTPUT"
