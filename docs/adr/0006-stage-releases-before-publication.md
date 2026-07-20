@@ -20,9 +20,10 @@ to prepare and deliver a release without a second workflow or coordination PR.
 One `Release` workflow owns the complete state machine:
 
 1. release-plz prepares version and changelog changes only. A signed commit is
-   pushed directly to `main` when preparation is required.
-2. The publishing run creates or verifies a signed tag and resolves its commit
-   as the authoritative release provenance.
+   pushed directly to `main` when preparation is required, and the same run
+   continues into publication so it does not depend on queued-run retention.
+2. The active run creates or verifies a signed tag and resolves its commit as
+   the authoritative release provenance, even if `main` later advances.
 3. Every cargo-dist job checks out that exact commit, builds checksummed Linux
    artifacts, and stages them in a draft GitHub Release.
 4. The crates.io credential is loaded only after staging succeeds. The workflow

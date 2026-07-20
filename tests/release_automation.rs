@@ -538,6 +538,8 @@ fn releases_have_one_main_branch_entrypoint() -> Result<(), Box<dyn Error>> {
     assert!(source.contains("workflow_dispatch:"));
     assert!(!source.contains("pull_request:"));
     assert!(!source.contains("tags:"));
+    assert!(source.contains("draft GitHub Release"));
+    assert!(!source.contains("If you push multiple tags at once"));
     Ok(())
 }
 
@@ -669,7 +671,7 @@ fn only_an_unpublished_version_enters_the_artifact_pipeline() -> Result<(), Box<
 }
 
 #[test]
-fn release_state_transitions_are_fail_closed_and_idempotent() -> Result<(), Box<dyn Error>> {
+fn preparation_commit_continues_in_the_same_release_run() -> Result<(), Box<dyn Error>> {
     let (dirty, dirty_log, dirty_outputs) =
         run_release_state(true, "404", "404", "false", false, "", false)?;
     assert!(
@@ -679,9 +681,21 @@ fn release_state_transitions_are_fail_closed_and_idempotent() -> Result<(), Box<
     );
     assert!(dirty_log.contains("commit -S -m chore(release): prepare v1.2.3"));
     assert!(dirty_log.contains("push origin HEAD:main"));
-    assert!(!dirty_log.contains("curl "));
-    assert!(dirty_outputs.contains("publishing=false"));
+    assert!(dirty_log.contains("push origin refs/tags/v1.2.3"));
+    assert!(dirty_outputs.contains("publishing=true"));
+    assert!(dirty_outputs.contains("release-commit=release-sha"));
+    let main_push = dirty_log
+        .find("push origin HEAD:main")
+        .ok_or("release preparation must push main")?;
+    let registry_check = dirty_log
+        .find("curl ")
+        .ok_or("the same run must continue into publication")?;
+    assert!(main_push < registry_check);
+    Ok(())
+}
 
+#[test]
+fn release_state_transitions_are_fail_closed_and_idempotent() -> Result<(), Box<dyn Error>> {
     let (unpublished, unpublished_log, unpublished_outputs) =
         run_release_state(false, "404", "404", "false", false, "", false)?;
     assert!(unpublished.status.success());
@@ -697,10 +711,12 @@ fn release_state_transitions_are_fail_closed_and_idempotent() -> Result<(), Box<
     assert!(!retry_log.contains("tag -s -a"));
     assert!(retry_outputs.contains("publishing=true"));
 
-    let (wrong_tag, _, wrong_tag_outputs) =
+    let (older_tag, older_tag_log, older_tag_outputs) =
         run_release_state(false, "404", "404", "false", true, "other-sha", false)?;
-    assert!(!wrong_tag.status.success());
-    assert!(wrong_tag_outputs.contains("publishing=false"));
+    assert!(older_tag.status.success());
+    assert!(older_tag_log.contains("verify-tag v1.2.3"));
+    assert!(older_tag_outputs.contains("publishing=true"));
+    assert!(older_tag_outputs.contains("release-commit=other-sha"));
 
     let (invalid_signature, invalid_log, invalid_outputs) =
         run_release_state(false, "404", "404", "false", true, "release-sha", true)?;

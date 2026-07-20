@@ -51,7 +51,6 @@ if ! git diff --cached --quiet; then
   configure_signing
   git commit -S -m "chore(release): prepare v${version}"
   git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth}" push origin HEAD:main
-  exit 0
 fi
 
 crate_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
@@ -118,7 +117,6 @@ fi
 configure_signing
 if git rev-parse --verify --quiet "refs/tags/${tag}^{commit}" > /dev/null; then
   release_commit="$(git rev-parse "refs/tags/${tag}^{commit}")"
-  [[ "$release_commit" == "$(git rev-parse HEAD)" ]]
   git verify-tag "$tag"
 else
   git tag -s -a "$tag" -m "Release ${tag}"

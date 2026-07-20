@@ -8,10 +8,12 @@ interruption. No release pull request is created or merged.
 
 1. release-plz updates `Cargo.toml`, `Cargo.lock`, and `CHANGELOG.md`. When that
    produces a change, Lanyard creates a signed release-preparation commit,
-   pushes it directly to `main`, and stops the current run. The resulting
-   `main` push starts the publishing run.
-2. The publishing run creates or verifies a signed annotated `vX.Y.Z` tag and
-   resolves its commit. Every later checkout uses that exact commit.
+   pushes it directly to `main`, and continues in the same non-cancelled run.
+   The run triggered by that push will later observe the completed release and
+   become a no-op.
+2. The active run creates or verifies a signed annotated `vX.Y.Z` tag and
+   resolves its commit. An existing verified tag remains authoritative if
+   `main` has advanced. Every later checkout uses that exact commit.
 3. cargo-dist builds the x86_64 and aarch64 GNU/Linux archives and SHA-256
    checksums. Those verified artifacts are uploaded to a draft GitHub
    Release. Nothing is public yet.
