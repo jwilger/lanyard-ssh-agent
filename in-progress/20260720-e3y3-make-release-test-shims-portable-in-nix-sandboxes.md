@@ -27,3 +27,5 @@ nix flake check rebuilds the package after any source change. Eleven release_aut
 ## Subtasks
 
 ## Notes / Log
+
+- 2026-07-20: Fixed on trunk at fa172f1. Generated release-test shims now resolve Bash from the trusted test PATH and execute under an empty environment; jq is declared as nativeCheckInputs for real release script parsing. cargo test --test release_automation passed 24/24, strict Clippy passed, a fresh pure Nix package derivation passed, nix flake check passed, independent final review was clean, and push-triggered CI 29753256040, Release 29753255810, and Tiber 29753256327 all completed successfully.
