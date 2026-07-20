@@ -18,7 +18,6 @@ Automate versioning, signed release artifacts, crates.io publication, and Pages 
 
 ## Acceptance criteria
 
-- [ ] release-plz and the pinned reusable workflow drive releases from main
 - [x] cargo-dist publishes Linux x86_64 and aarch64 artifacts with checksums
 - [x] The crate package and GitHub Release are reproducible from the repository
 - [x] GitHub Pages deploys the versioned documentation site
