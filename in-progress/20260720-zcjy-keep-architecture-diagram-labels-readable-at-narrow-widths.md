@@ -12,7 +12,11 @@ claim:
 
 ## Summary
 
+Prevent the output labels in the architecture-page routing diagram from overlapping when the illustration is displayed at narrower widths.
+
 ## Context / Why
+
+The diagram currently compresses the labels SSH, Git signing, multiplexer, and session until adjacent words run together. Readers must be able to distinguish each output at every supported responsive width. Add a browser regression test at the affected viewport and adjust the responsive diagram layout while preserving the existing visual design.
 
 ## Acceptance criteria
 
