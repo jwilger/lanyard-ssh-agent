@@ -1,6 +1,6 @@
 ---
 title: Make repository worktree-ready
-blocked_by: []
+blocked_by: [20260720-e3y3-make-release-test-shims-portable-in-nix-sandboxes]
 blocks: []
 tags: [tooling, worktrees]
 pr_mr_url: 

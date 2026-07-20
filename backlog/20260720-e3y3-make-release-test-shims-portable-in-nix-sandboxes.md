@@ -1,7 +1,7 @@
 ---
 title: Make release test shims portable in Nix sandboxes
 blocked_by: []
-blocks: []
+blocks: [20260719-9nuy-make-repository-worktree-ready]
 tags: [testing, nix, release]
 pr_mr_url: 
 pr_mr_status: 
