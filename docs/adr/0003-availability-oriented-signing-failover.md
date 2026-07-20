@@ -1,8 +1,9 @@
-# 3. Prefer bounded availability for signing
-
-Date: 2026-07-19
-
-Status: accepted
+---
+number: 3
+title: Prefer bounded availability for signing
+status: Accepted
+date: 2026-07-19
+---
 
 ## Context
 

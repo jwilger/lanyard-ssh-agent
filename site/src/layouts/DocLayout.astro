@@ -9,8 +9,12 @@ interface Props {
 const { title, eyebrow, description } = Astro.props;
 const base = import.meta.env.BASE_URL;
 const current = Astro.url.pathname;
-const currentPage = (path: string) =>
-  current === `${base}${path}` ? "page" : undefined;
+const currentPage = (path: string) => {
+  const canonical = `${base}${path}`;
+  return current === canonical || current.startsWith(`${canonical}decisions/`)
+    ? "page"
+    : undefined;
+};
 ---
 
 <BaseLayout title={`${title} — Lanyard manual`} {description} section={eyebrow}>

@@ -1,5 +1,10 @@
 import { readdir, readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import {
+  STAGED_RELEASE_ADR,
+  requireAdr,
+  validateAdrReferences,
+} from "../src/lib/adr-reference";
 
 describe("the generated documentation site", () => {
   it("introduces Lanyard at the repository URL", async () => {
@@ -37,5 +42,55 @@ describe("the generated documentation site", () => {
     expect(
       internalLinks.every((href) => href.startsWith("/lanyard-ssh-agent/")),
     ).toBe(true);
+  });
+
+  it("publishes every canonical ADR through the architecture index", async () => {
+    const canonical = (await readdir("../docs/adr"))
+      .filter((entry) => entry.endsWith(".md"))
+      .map((entry) => entry.replace(/\.md$/, ""))
+      .sort();
+    const published = (
+      await readdir("dist/docs/architecture/decisions", {
+        withFileTypes: true,
+      })
+    )
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort();
+    const index = await readFile(
+      "dist/docs/architecture/decisions/index.html",
+      "utf8",
+    );
+
+    expect(published).toEqual(canonical);
+    expect(index).toContain("Architecture decision records");
+    expect(index).toContain("ADR 0004");
+    expect(index).toContain("Superseded by ADR 0006");
+  });
+
+  it("renders complete ADR content and links references to stable pages", async () => {
+    const record = await readFile(
+      "dist/docs/architecture/decisions/0003-availability-oriented-signing-failover/index.html",
+      "utf8",
+    );
+    const architecture = await readFile(
+      "dist/docs/architecture/index.html",
+      "utf8",
+    );
+
+    expect(record).toContain("Prefer bounded availability for signing");
+    expect(record).toContain("A denial at one backend may fall through");
+    expect(architecture).toContain(
+      'href="/lanyard-ssh-agent/docs/architecture/decisions/0002-functional-core-effectful-shell/"',
+    );
+  });
+
+  it("rejects a reference to an ADR that the canonical collection lacks", () => {
+    expect(() => requireAdr([], 99)).toThrow("Referenced ADR 0099 is missing");
+    expect(() => {
+      validateAdrReferences([
+        { entry: { data: { number: STAGED_RELEASE_ADR } } },
+      ]);
+    }).toThrow("Referenced ADR 0001 is missing");
   });
 });

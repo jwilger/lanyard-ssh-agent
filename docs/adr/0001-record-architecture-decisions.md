@@ -1,8 +1,9 @@
-# 1. Record architecture decisions
-
-Date: 2026-07-19
-
-Status: accepted
+---
+number: 1
+title: Record architecture decisions
+status: Accepted
+date: 2026-07-19
+---
 
 ## Context
 

@@ -1,6 +1,20 @@
 ---
 import DocLayout from "../../layouts/DocLayout.astro";
 import RouteDiagram from "../../components/RouteDiagram.astro";
+import {
+  FUNCTIONAL_CORE_ADR,
+  HOME_MANAGER_ADR,
+  SIGNING_FAILOVER_ADR,
+  STAGED_RELEASE_ADR,
+} from "../../lib/adr-reference";
+import { adrPath, getAdrs, requireAdr } from "../../lib/adrs";
+
+const base = import.meta.env.BASE_URL;
+const records = await getAdrs();
+const coreAdr = requireAdr(records, FUNCTIONAL_CORE_ADR);
+const signingAdr = requireAdr(records, SIGNING_FAILOVER_ADR);
+const homeManagerAdr = requireAdr(records, HOME_MANAGER_ADR);
+const releaseAdr = requireAdr(records, STAGED_RELEASE_ADR);
 ---
 
 <DocLayout
@@ -38,10 +52,18 @@ import RouteDiagram from "../../components/RouteDiagram.astro";
       </li>
     </ol>
     <h2>Decision records</h2><p>
-      Repository ADRs document the proxy boundary, fallback semantics, OpenSSH
-      extension handling, Home Manager integration, and release architecture.
-      Revisit them when upstream protocol behavior or the Linux runtime model
+      The architecture is constrained by published records for the <a
+        href={`${base}${adrPath(coreAdr)}`}>functional core boundary</a
+      >, <a href={`${base}${adrPath(signingAdr)}`}>signing failover policy</a>,
+      <a href={`${base}${adrPath(homeManagerAdr)}`}>Home Manager integration</a
+      >, and <a href={`${base}${adrPath(releaseAdr)}`}>release state machine</a
+      >. Revisit them when upstream protocol behavior or the runtime model
       changes.
+    </p>
+    <p class="decision-index-link">
+      <a href={`${base}docs/architecture/decisions/`}
+        >Read the complete architecture decision log →</a
+      >
     </p>
   </div>
 </DocLayout>

@@ -1,0 +1,73 @@
+---
+import { render } from "astro:content";
+import DocLayout from "../../../../layouts/DocLayout.astro";
+import { adrPath, getAdrs, type AdrRecord } from "../../../../lib/adrs";
+
+export async function getStaticPaths() {
+  const records = await getAdrs();
+  return records.map((record) => ({
+    params: { slug: record.slug },
+    props: { record },
+  }));
+}
+
+interface Props {
+  record: AdrRecord;
+}
+
+const { record } = Astro.props;
+const { Content } = await render(record.entry);
+const records = await getAdrs();
+const position = records.findIndex(
+  (candidate) => candidate.slug === record.slug,
+);
+const previous = position > 0 ? records[position - 1] : undefined;
+const next = position < records.length - 1 ? records[position + 1] : undefined;
+const base = import.meta.env.BASE_URL;
+---
+
+<DocLayout
+  title={record.entry.data.title}
+  eyebrow={`${record.label} / ${record.entry.data.status.toUpperCase()}`}
+  description={`Architecture decision ${record.entry.data.number.toString()}: ${record.entry.data.status}.`}
+>
+  <div class="prose adr-record">
+    <dl class="adr-metadata">
+      <div><dt>Record</dt><dd>{record.label}</dd></div>
+      <div><dt>Status</dt><dd>{record.entry.data.status}</dd></div>
+      {
+        record.entry.data.date && (
+          <div>
+            <dt>Date</dt>
+            <dd>{record.entry.data.date.toISOString().slice(0, 10)}</dd>
+          </div>
+        )
+      }
+    </dl>
+    <Content />
+    <nav class="adr-pagination" aria-label="Architecture decision records">
+      {
+        previous ? (
+          <a href={`${base}${adrPath(previous)}`} rel="prev">
+            <span>Previous record</span>
+            {previous.label}
+          </a>
+        ) : (
+          <span />
+        )
+      }
+      {
+        next ? (
+          <a href={`${base}${adrPath(next)}`} rel="next">
+            <span>Next record</span>
+            {next.label}
+          </a>
+        ) : (
+          <a href={`${base}docs/architecture/decisions/`}>
+            <span>Return to</span>Decision index
+          </a>
+        )
+      }
+    </nav>
+  </div>
+</DocLayout>

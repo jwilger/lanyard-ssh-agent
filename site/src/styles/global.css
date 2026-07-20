@@ -487,6 +487,107 @@ h3 {
   line-height: 1.7;
   white-space: pre-wrap;
 }
+.adr-intro {
+  margin-bottom: 3rem;
+  font-size: 1.3rem;
+}
+.adr-ledger {
+  margin: 0;
+  padding: 0;
+  border-top: 2px solid var(--ink);
+  list-style: none;
+}
+.prose .adr-ledger li {
+  margin: 0;
+  border-bottom: 1px solid var(--ink);
+}
+.adr-ledger a {
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.4fr) minmax(12rem, 1.4fr) minmax(
+      9rem,
+      0.7fr
+    );
+  gap: 1.5rem;
+  align-items: baseline;
+  padding: 1.4rem 0;
+  color: inherit;
+  text-decoration: none;
+}
+.adr-ledger a:hover strong,
+.adr-ledger a:focus-visible strong {
+  color: var(--orange-text);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+}
+.adr-number,
+.adr-status,
+.adr-metadata,
+.adr-pagination {
+  font-family: "IBM Plex Mono";
+}
+.adr-number,
+.adr-status {
+  font-size: 0.76rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.adr-status {
+  color: var(--orange-text);
+}
+.decision-index-link {
+  margin-top: 2.5rem;
+  font: 600 0.9rem "IBM Plex Mono";
+}
+.adr-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0 0 4rem;
+  border-block: 2px solid var(--ink);
+}
+.adr-metadata div {
+  min-width: 10rem;
+  padding: 1rem 1.5rem 1rem 0;
+}
+.adr-metadata dt {
+  color: var(--orange-text);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.adr-metadata dd {
+  margin: 0.25rem 0 0;
+}
+.adr-pagination {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 5rem;
+  border: 2px solid var(--ink);
+}
+.adr-pagination > * {
+  min-height: 5.5rem;
+  padding: 1rem;
+}
+.adr-pagination a {
+  color: inherit;
+  text-decoration: none;
+}
+.adr-pagination a + a,
+.adr-pagination > span + a {
+  border-left: 1px solid var(--ink);
+  text-align: right;
+}
+.adr-pagination a:hover,
+.adr-pagination a:focus-visible {
+  background: var(--cyan);
+}
+.adr-pagination span {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--orange-text);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 .note {
   margin: 2rem 0;
   padding: 1.3rem 1.5rem;
@@ -695,6 +796,21 @@ footer nav {
   }
   .prose {
     padding-inline: 1.25rem;
+  }
+  .adr-ledger a {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+  .adr-pagination {
+    grid-template-columns: 1fr;
+  }
+  .adr-pagination > span {
+    display: none;
+  }
+  .adr-pagination a + a,
+  .adr-pagination > span + a {
+    border-left: 0;
+    border-top: 1px solid var(--ink);
   }
   .next-links {
     grid-template-columns: 1fr;

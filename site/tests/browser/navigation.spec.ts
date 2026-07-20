@@ -68,3 +68,35 @@ test("all documented manual routes load", async ({ page }) => {
     await expect(page.locator("main h1")).toBeVisible();
   }
 });
+
+test("the architecture index opens a complete accessible ADR", async ({
+  page,
+}) => {
+  await page.goto("docs/architecture/decisions/");
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "Architecture decision records",
+    }),
+  ).toBeVisible();
+
+  await page.getByRole("link", { name: /ADR 0003/i }).click();
+  await expect(page).toHaveURL(
+    /\/docs\/architecture\/decisions\/0003-availability-oriented-signing-failover\/$/,
+  );
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "Prefer bounded availability for signing",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 2, name: "Consequences" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/A denial at one backend may fall through/),
+  ).toBeVisible();
+
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+});

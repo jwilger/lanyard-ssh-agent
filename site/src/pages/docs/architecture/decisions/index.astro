@@ -1,0 +1,36 @@
+---
+import DocLayout from "../../../../layouts/DocLayout.astro";
+import { adrPath, getAdrs, type AdrRecord } from "../../../../lib/adrs";
+
+const records = await getAdrs();
+const base = import.meta.env.BASE_URL;
+---
+
+<DocLayout
+  title="Architecture decision records"
+  eyebrow="SECTION 09A / DECISION LOG"
+  description="The durable rationale behind Lanyard’s protocol, packaging, and release boundaries—published directly from the canonical repository records."
+>
+  <div class="prose">
+    <p class="adr-intro">
+      These records are historical constraints, not a feature catalogue.
+      Accepted decisions remain intact; a later ADR supersedes them explicitly.
+    </p>
+    <ol class="adr-ledger">
+      {
+        /* astro-eslint-parser loses the collection type inside JSX callbacks. */
+        /* eslint-disable @typescript-eslint/no-unsafe-return */
+        records.map((record: AdrRecord) => (
+          <li>
+            <a href={`${base}${adrPath(record)}`}>
+              <span class="adr-number">{record.label}</span>
+              <strong>{record.entry.data.title}</strong>
+              <span class="adr-status">{record.entry.data.status}</span>
+            </a>
+          </li>
+        ))
+        /* eslint-enable @typescript-eslint/no-unsafe-return */
+      }
+    </ol>
+  </div>
+</DocLayout>

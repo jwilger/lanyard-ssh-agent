@@ -1,8 +1,8 @@
-# ADR 0005: Package Home Manager integration with the flake
-
-## Status
-
-Accepted
+---
+number: 5
+title: Package Home Manager integration with the flake
+status: Accepted
+---
 
 ## Context
 

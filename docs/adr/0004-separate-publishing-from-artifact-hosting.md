@@ -1,8 +1,8 @@
-# ADR 0004: Separate crate publishing from artifact hosting
-
-## Status
-
-Superseded by ADR 0006
+---
+number: 4
+title: Separate crate publishing from artifact hosting
+status: Superseded by ADR 0006
+---
 
 ## Context
 

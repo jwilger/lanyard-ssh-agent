@@ -1,5 +1,10 @@
 ---
 import DocLayout from "../../layouts/DocLayout.astro";
+import { DECISION_PROCESS_ADR } from "../../lib/adr-reference";
+import { adrPath, getAdrs, requireAdr } from "../../lib/adrs";
+
+const base = import.meta.env.BASE_URL;
+const decisionProcess = requireAdr(await getAdrs(), DECISION_PROCESS_ADR);
 ---
 
 <DocLayout
@@ -20,7 +25,9 @@ just test</code></pre><p>
       <li>Start observable behavior with a failing black-box test.</li><li>
         Keep the routing core pure and I/O at the boundary.
       </li><li>Use semantic types and explicit error values.</li><li>
-        Record architectural choices as ADRs.
+        Record architectural choices as <a
+          href={`${base}${adrPath(decisionProcess)}`}>ADRs</a
+        >.
       </li><li>Use Conventional Commits and signed commits.</li>
     </ul>
     <h2>
@@ -35,10 +42,13 @@ npm run test:browser</code></pre><p
       navigation, readable contrast, reduced-motion behavior, and the repository
       subpath in every link.
     </p>
-    <h2>Submit changes</h2><p>
-      Open a focused pull request against <code>main</code>. Explain the
-      operator-visible behavior, include the RED/GREEN evidence, and call out
-      protocol or threat-model consequences.
+    <h2>Integrate changes</h2><p>
+      Never publish the local ticket branch. After independent review and the
+      shared gate, verify that remote <code>main</code> is an ancestor of the reviewed
+      commit and push that exact commit with <code
+        >git push origin HEAD:main</code
+      >. Explain operator-visible behavior, preserve RED/GREEN evidence, and
+      call out protocol or threat-model consequences.
     </p>
   </div>
 </DocLayout>

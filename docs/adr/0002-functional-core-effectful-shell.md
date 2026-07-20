@@ -1,8 +1,9 @@
-# 2. Separate routing decisions from effects
-
-Date: 2026-07-19
-
-Status: accepted
+---
+number: 2
+title: Separate routing decisions from effects
+status: Accepted
+date: 2026-07-19
+---
 
 ## Context
 

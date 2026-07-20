@@ -1,5 +1,10 @@
 ---
 import DocLayout from "../../layouts/DocLayout.astro";
+import { STAGED_RELEASE_ADR } from "../../lib/adr-reference";
+import { adrPath, getAdrs, requireAdr } from "../../lib/adrs";
+
+const base = import.meta.env.BASE_URL;
+const stagedReleaseAdr = requireAdr(await getAdrs(), STAGED_RELEASE_ADR);
 ---
 
 <DocLayout
@@ -54,6 +59,9 @@ import DocLayout from "../../layouts/DocLayout.astro";
       Contributions are accepted under the same terms.
     </p>
     <p>
+      <a href={`${base}${adrPath(stagedReleaseAdr)}`}
+        >Read the staged-release decision →</a
+      ><br />
       <a href="https://github.com/jwilger/lanyard-ssh-agent/releases"
         >Browse releases →</a
       >

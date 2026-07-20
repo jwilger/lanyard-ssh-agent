@@ -1,8 +1,8 @@
-# ADR 0006: Stage releases before publication
-
-## Status
-
-Accepted
+---
+number: 6
+title: Stage releases before publication
+status: Accepted
+---
 
 ## Context
 

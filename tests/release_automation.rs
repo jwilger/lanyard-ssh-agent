@@ -1309,7 +1309,7 @@ fn release_docs_describe_the_single_staged_pipeline() -> Result<(), Box<dyn Erro
     assert!(!guide.contains("shared workflow"));
     assert!(!guide.contains("release-plz pull request"));
     assert!(superseded.contains("Superseded by ADR 0006"));
-    assert!(decision.contains("## Status\n\nAccepted"));
+    assert!(decision.contains("\nstatus: Accepted\n"));
     Ok(())
 }
 
