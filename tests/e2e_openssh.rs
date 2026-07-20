@@ -17,7 +17,7 @@ use std::env;
 use std::error::Error;
 use std::fs::{self, OpenOptions};
 use std::io::{self, ErrorKind, Read as _, Write as _};
-use std::net::{TcpListener, TcpStream};
+use std::net::{Shutdown, TcpListener, TcpStream};
 use std::os::unix::fs::OpenOptionsExt as _;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
@@ -37,6 +37,119 @@ const SUCCESS: u8 = 6;
 enum AgentRequest {
     Message(u8),
     Extension(Vec<u8>),
+}
+
+struct RecorderWorker {
+    handle: JoinHandle<io::Result<()>>,
+    shutdown_streams: [UnixStream; 2],
+}
+
+fn finish_recorder_workers(workers: Vec<RecorderWorker>) -> io::Result<()> {
+    let mut shutdown_errors = Vec::new();
+    for worker in &workers {
+        for stream in &worker.shutdown_streams {
+            if let Err(error) = stream.shutdown(Shutdown::Both) {
+                shutdown_errors.push(error.to_string());
+            }
+        }
+    }
+    let mut worker_errors = Vec::new();
+    for worker in workers {
+        match worker.handle.join() {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => {
+                worker_errors.push(format!("recorder worker failed: {error}"));
+            }
+            Err(_) => {
+                worker_errors.push(String::from("recorder worker panicked"));
+            }
+        }
+    }
+    if worker_errors.is_empty() && shutdown_errors.is_empty() {
+        return Ok(());
+    }
+    worker_errors.extend(
+        shutdown_errors
+            .into_iter()
+            .map(|error| format!("recorder socket shutdown failed: {error}")),
+    );
+    Err(io::Error::other(worker_errors.join("\n")))
+}
+
+fn recorder_listener_failure(workers: Vec<RecorderWorker>, error: io::Error) -> io::Error {
+    match finish_recorder_workers(workers) {
+        Ok(()) => error,
+        Err(worker_error) => {
+            io::Error::other(format!("recorder listener failed: {error}\n{worker_error}"))
+        }
+    }
+}
+
+#[test]
+fn recorder_teardown_unblocks_and_joins_a_connection_worker() -> io::Result<()> {
+    let (mut worker_stream, peer) = UnixStream::pair()?;
+    let shutdown_stream = worker_stream.try_clone()?;
+    let handle = thread::spawn(move || {
+        let mut byte = [0u8; 1];
+        let _bytes_read = worker_stream.read(&mut byte)?;
+        Ok(())
+    });
+
+    finish_recorder_workers(vec![RecorderWorker {
+        handle,
+        shutdown_streams: [shutdown_stream, peer],
+    }])
+}
+
+#[test]
+fn recorder_teardown_surfaces_connection_worker_errors() -> io::Result<()> {
+    let (first, second) = UnixStream::pair()?;
+    let worker = RecorderWorker {
+        handle: thread::spawn(|| Err(io::Error::other("injected forwarding failure"))),
+        shutdown_streams: (first, second).into(),
+    };
+
+    let error = match finish_recorder_workers(vec![worker]) {
+        Ok(()) => return Err(io::Error::other("worker failure was discarded")),
+        Err(error) => error,
+    };
+    assert!(error.to_string().contains("injected forwarding failure"));
+    Ok(())
+}
+
+#[test]
+fn recorder_finish_reports_a_real_forwarding_failure() -> io::Result<()> {
+    let directory = tempfile::tempdir()?;
+    let upstream_path = directory.path().join("broken-upstream.sock");
+    let upstream = UnixListener::bind(&upstream_path)?;
+    let upstream_worker = thread::spawn(move || -> io::Result<()> {
+        let (mut connection, _address) = upstream.accept()?;
+        let _request = read_frame(&mut connection)?;
+        Ok(())
+    });
+    let recorder_path = directory.path().join("recorder.sock");
+    let recorder = AgentRecorder::start(
+        &recorder_path,
+        &upstream_path,
+        Arc::new(Mutex::new(Vec::new())),
+    )?;
+    let mut client = UnixStream::connect(recorder_path)?;
+    write_frame(&mut client, &[SIGN_REQUEST])?;
+    upstream_worker
+        .join()
+        .map_err(|_panic| io::Error::other("fake upstream panicked"))??;
+
+    let error = match recorder.finish() {
+        Ok(()) => return Err(io::Error::other("forwarding failure was discarded")),
+        Err(error) => error,
+    };
+    assert!(error.to_string().contains("recorder worker"));
+    if read_frame(&mut client).is_ok() {
+        return Err(io::Error::other(
+            "failed worker left its client stream open",
+        ));
+    }
+    Ok(())
 }
 
 enum StartAttempt<T> {
@@ -306,7 +419,8 @@ fn authenticates_and_signs_through_lanyard() -> Result<(), Box<dyn Error>> {
     assert!(query_index < binding_index);
     assert!(binding_index < signing_index);
 
-    drop(recorder);
+    lanyard.terminate()?;
+    recorder.finish()?;
     Ok(())
 }
 
@@ -532,7 +646,7 @@ impl Drop for ChildGuard {
 
 struct AgentRecorder {
     shutdown: Arc<AtomicBool>,
-    listener: Option<JoinHandle<()>>,
+    listener: Option<JoinHandle<io::Result<Vec<RecorderWorker>>>>,
 }
 
 impl AgentRecorder {
@@ -546,49 +660,93 @@ impl AgentRecorder {
         let shutdown = Arc::new(AtomicBool::new(false));
         let listener_shutdown = Arc::clone(&shutdown);
         let upstream_path = upstream.to_path_buf();
-        let thread = thread::spawn(move || {
+        let thread = thread::spawn(move || -> io::Result<Vec<RecorderWorker>> {
+            let mut workers = Vec::new();
             while !listener_shutdown.load(Ordering::Relaxed) {
                 match listener.accept() {
                     Ok((downstream, _address)) => {
-                        let connection_upstream = upstream_path.clone();
+                        let upstream_connection = match UnixStream::connect(&upstream_path) {
+                            Ok(connection) => connection,
+                            Err(error) => {
+                                return Err(recorder_listener_failure(workers, error));
+                            }
+                        };
+                        let downstream_shutdown = match downstream.try_clone() {
+                            Ok(stream) => stream,
+                            Err(error) => {
+                                return Err(recorder_listener_failure(workers, error));
+                            }
+                        };
+                        let upstream_shutdown = match upstream_connection.try_clone() {
+                            Ok(stream) => stream,
+                            Err(error) => {
+                                return Err(recorder_listener_failure(workers, error));
+                            }
+                        };
+                        let shutdown_streams = [downstream_shutdown, upstream_shutdown];
                         let connection_recorded = Arc::clone(&recorded);
-                        thread::spawn(move || {
-                            let _forward_result = record_connection(
-                                downstream,
-                                &connection_upstream,
-                                &connection_recorded,
-                            );
+                        let handle = match thread::Builder::new()
+                            .name(String::from("lanyard-e2e-recorder"))
+                            .spawn(move || {
+                                record_connection(
+                                    downstream,
+                                    upstream_connection,
+                                    &connection_recorded,
+                                )
+                            }) {
+                            Ok(handle) => handle,
+                            Err(error) => {
+                                return Err(recorder_listener_failure(workers, error));
+                            }
+                        };
+                        workers.push(RecorderWorker {
+                            handle,
+                            shutdown_streams,
                         });
                     }
                     Err(error) if error.kind() == ErrorKind::WouldBlock => {
                         thread::sleep(Duration::from_millis(5));
                     }
-                    Err(_) => break,
+                    Err(error) => {
+                        return Err(recorder_listener_failure(workers, error));
+                    }
                 }
             }
+            Ok(workers)
         });
         Ok(Self {
             shutdown,
             listener: Some(thread),
         })
     }
+
+    fn finish(mut self) -> io::Result<()> {
+        self.shutdown_and_join()
+    }
+
+    fn shutdown_and_join(&mut self) -> io::Result<()> {
+        self.shutdown.store(true, Ordering::Relaxed);
+        let Some(listener) = self.listener.take() else {
+            return Ok(());
+        };
+        let workers = listener
+            .join()
+            .map_err(|_panic| io::Error::other("recorder listener panicked"))??;
+        finish_recorder_workers(workers)
+    }
 }
 
 impl Drop for AgentRecorder {
     fn drop(&mut self) {
-        self.shutdown.store(true, Ordering::Relaxed);
-        if let Some(listener) = self.listener.take() {
-            let _join_result = listener.join();
-        }
+        let _finish_result = self.shutdown_and_join();
     }
 }
 
 fn record_connection(
     mut downstream: UnixStream,
-    upstream_path: &Path,
+    mut upstream: UnixStream,
     recorded: &Mutex<Vec<AgentRequest>>,
 ) -> io::Result<()> {
-    let mut upstream = UnixStream::connect(upstream_path)?;
     loop {
         let request = match read_frame(&mut downstream) {
             Ok(frame) => frame,
