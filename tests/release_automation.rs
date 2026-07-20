@@ -150,11 +150,32 @@ set -euo pipefail
 printf 'gh %s\n' "$*" >> "$COMMAND_LOG"
 if [[ "$*" == "release view "* ]]; then
   case "$EXISTING_RELEASE" in
-    missing) exit 1 ;;
+    missing | error) exit 1 ;;
     draft) printf '%s\n' true ;;
     public) printf '%s\n' false ;;
   esac
 fi
+"#,
+    )?;
+    write_executable(
+        &bin.join("curl"),
+        r#"#!/usr/bin/env bash
+set -euo pipefail
+printf 'curl %s\n' "$*" >> "$COMMAND_LOG"
+output=""
+while (($#)); do
+  if [[ "$1" == --output ]]; then
+    output="$2"
+    break
+  fi
+  shift
+done
+case "$EXISTING_RELEASE" in
+  missing) printf '%s' 404 ;;
+  draft) printf '%s\n' '{"draft":true}' > "$output"; printf '%s' 200 ;;
+  public) printf '%s\n' '{"draft":false}' > "$output"; printf '%s' 200 ;;
+  error) printf '%s' 503 ;;
+esac
 "#,
     )?;
     let path = format!(
@@ -168,6 +189,8 @@ fi
         .env("PATH", path)
         .env("COMMAND_LOG", &command_log)
         .env("EXISTING_RELEASE", existing)
+        .env("GITHUB_REPOSITORY", "jwilger/lanyard-ssh-agent")
+        .env("GH_TOKEN", "test-token")
         .env("RELEASE_TAG", "v1.2.3")
         .env("RELEASE_COMMIT", "release-sha")
         .env("ARTIFACT_DIR", &artifacts)
@@ -843,7 +866,11 @@ fn verified_artifacts_are_staged_in_a_draft_release() -> Result<(), Box<dyn Erro
 fn draft_release_staging_is_retryable_but_never_accepts_a_public_release()
 -> Result<(), Box<dyn Error>> {
     let (missing, missing_log) = run_stage_release("missing")?;
-    assert!(missing.status.success());
+    assert!(
+        missing.status.success(),
+        "{}",
+        String::from_utf8_lossy(&missing.stderr)
+    );
     assert!(missing_log.contains("release create v1.2.3 --draft"));
     assert!(missing_log.contains("release upload v1.2.3"));
 
@@ -855,6 +882,11 @@ fn draft_release_staging_is_retryable_but_never_accepts_a_public_release()
     let (public, public_log) = run_stage_release("public")?;
     assert!(!public.status.success());
     assert!(!public_log.contains("release upload"));
+
+    let (lookup_error, lookup_error_log) = run_stage_release("error")?;
+    assert!(!lookup_error.status.success());
+    assert!(!lookup_error_log.contains("release create"));
+    assert!(!lookup_error_log.contains("release upload"));
     Ok(())
 }
 
