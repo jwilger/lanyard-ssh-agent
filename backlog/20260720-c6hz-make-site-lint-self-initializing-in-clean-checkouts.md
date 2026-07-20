@@ -17,6 +17,8 @@ After npm ci in a clean worktree, npm run check fails with unresolved import.met
 
 ## Acceptance criteria
 
+- [ ] npm ci followed directly by npm run check passes in a clean checkout
+
 ## Subtasks
 
 ## Notes / Log
