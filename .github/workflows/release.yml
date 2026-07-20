@@ -49,6 +49,10 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.sha }}
           persist-credentials: false
+      - name: Attach verified revision to local main branch
+        run: |
+          git switch --force-create main "$GITHUB_SHA"
+          git branch --set-upstream-to=origin/main main
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
       - name: Cache cargo dependencies

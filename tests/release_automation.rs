@@ -488,6 +488,27 @@ fn assert_pinned_tool_install(
     Ok(())
 }
 
+fn assert_verified_revision_is_attached(prepare: &Yaml) -> Result<(), Box<dyn Error>> {
+    let attach = prepare
+        .get("steps")
+        .and_then(Yaml::as_sequence)
+        .and_then(|steps| {
+            steps.iter().find(|step| {
+                step.get("name").and_then(Yaml::as_str)
+                    == Some("Attach verified revision to local main branch")
+            })
+        })
+        .ok_or("release-plz requires the verified revision on a local branch")?;
+    assert_eq!(
+        attach.get("run").and_then(Yaml::as_str),
+        Some(
+            "git switch --force-create main \"$GITHUB_SHA\"\ngit branch --set-upstream-to=origin/main main\n"
+        ),
+        "the local branch must remain pinned to the caller SHA while tracking remote main"
+    );
+    Ok(())
+}
+
 fn assert_immutable_action_references(workflow: &Yaml) -> Result<(), Box<dyn Error>> {
     let mut references = Vec::new();
     values_for_key(workflow, "uses", &mut references);
@@ -819,6 +840,7 @@ fn release_preparation_updates_main_without_a_release_pr() -> Result<(), Box<dyn
             .and_then(Yaml::as_bool),
         Some(false)
     );
+    assert_verified_revision_is_attached(prepare)?;
     let mut scripts = Vec::new();
     values_for_key(prepare, "run", &mut scripts);
     let state_script = read("scripts/prepare-release.sh")?;
