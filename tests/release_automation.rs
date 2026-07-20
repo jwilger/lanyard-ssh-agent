@@ -246,23 +246,53 @@ fn dist_builds_checksummed_linux_archives() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn release_entrypoint_enables_pinned_shared_automation() -> Result<(), Box<dyn Error>> {
-    let release_plz = workflow(".github/workflows/release-plz.yml")?;
-    let dist = workflow(".github/workflows/release.yml")?;
-    let mut conditions = Vec::new();
-    let mut shared_workflows = Vec::new();
-    values_for_key(&release_plz, "if", &mut conditions);
-    values_for_key(&release_plz, "uses", &mut shared_workflows);
-
-    assert_immutable_action_references(&release_plz)?;
-    assert_immutable_action_references(&dist)?;
-    assert!(conditions.is_empty());
-    assert_eq!(
-        shared_workflows,
-        [
-            "jwilger/gha-workflows/.github/workflows/rust-release-plz.yml@b4507a0b4110cd0254586382e805832c349e109d"
-        ]
+fn releases_have_one_main_branch_entrypoint() -> Result<(), Box<dyn Error>> {
+    assert!(
+        !Path::new(".github/workflows/release-plz.yml").exists(),
+        "the former release-plz entrypoint must stay consolidated"
     );
+    let release_workflows = fs::read_dir(".github/workflows")?
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            let path = entry.path();
+            matches!(
+                path.extension().and_then(|extension| extension.to_str()),
+                Some("yml" | "yaml")
+            ) && fs::read_to_string(&path)
+                .ok()
+                .and_then(|source| serde_yaml::from_str::<Yaml>(&source).ok())
+                .and_then(|document| {
+                    document
+                        .get("name")
+                        .and_then(Yaml::as_str)
+                        .map(str::to_owned)
+                })
+                .as_deref()
+                == Some("Release")
+        })
+        .count();
+    assert_eq!(release_workflows, 1);
+
+    let release = workflow(".github/workflows/release.yml")?;
+    let source = read(".github/workflows/release.yml")?;
+    assert_immutable_action_references(&release)?;
+    assert!(source.contains("branches: [main]"));
+    assert!(source.contains("workflow_dispatch:"));
+    assert!(!source.contains("pull_request:"));
+    assert!(!source.contains("tags:"));
+    Ok(())
+}
+
+#[test]
+fn main_branch_entrypoint_does_not_execute_the_legacy_tag_pipeline() -> Result<(), Box<dyn Error>> {
+    let release = workflow(".github/workflows/release.yml")?;
+    let plan_condition = release
+        .get("jobs")
+        .and_then(|jobs| jobs.get("plan"))
+        .and_then(|plan| plan.get("if"))
+        .and_then(Yaml::as_str);
+
+    assert_eq!(plan_condition, Some("${{ false }}"));
     Ok(())
 }
 
