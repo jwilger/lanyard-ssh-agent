@@ -1071,6 +1071,16 @@ fn release_recovery_detection_is_fail_closed_for_external_states() -> Result<(),
 }
 
 #[test]
+fn completed_release_does_not_require_the_historical_signing_identity() -> Result<(), Box<dyn Error>>
+{
+    let (output, commands, outputs) = run_recovery_detection("200", "200", "false")?;
+    assert!(output.status.success());
+    assert_eq!(outputs, "recovering=false\n");
+    assert!(!commands.contains("verify-tag"));
+    Ok(())
+}
+
+#[test]
 fn release_jobs_checkout_the_authoritative_tag_commit() -> Result<(), Box<dyn Error>> {
     let release = workflow(".github/workflows/release.yml")?;
     let jobs = release

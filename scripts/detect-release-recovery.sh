@@ -16,15 +16,6 @@ if [[ -z "$tag" ]]; then
   exit 0
 fi
 
-printf '%s\n' "$RELEASE_SIGNING_KEY" > "$signing_key_path"
-chmod 600 "$signing_key_path"
-printf '%s %s\n' \
-  "${RELEASE_SIGNING_EMAIL:-release-plz-bot@users.noreply.github.com}" \
-  "$(ssh-keygen -y -f "$signing_key_path")" > "$allowed_signers_path"
-git config gpg.format ssh
-git config gpg.ssh.allowedSignersFile "$allowed_signers_path"
-git verify-tag "$tag"
-release_commit="$(git rev-parse "refs/tags/${tag}^{commit}")"
 version="${tag#v}"
 
 crate_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
@@ -76,6 +67,16 @@ case "$github_release_status" in
     exit 1
     ;;
 esac
+
+printf '%s\n' "$RELEASE_SIGNING_KEY" > "$signing_key_path"
+chmod 600 "$signing_key_path"
+printf '%s %s\n' \
+  "${RELEASE_SIGNING_EMAIL:-release-plz-bot@users.noreply.github.com}" \
+  "$(ssh-keygen -y -f "$signing_key_path")" > "$allowed_signers_path"
+git config gpg.format ssh
+git config gpg.ssh.allowedSignersFile "$allowed_signers_path"
+git verify-tag "$tag"
+release_commit="$(git rev-parse "refs/tags/${tag}^{commit}")"
 
 {
   echo "recovering=true"
