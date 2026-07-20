@@ -17,6 +17,10 @@ name: Release
 permissions:
   "contents": "read"
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 # This task will run whenever you push a git tag that looks like a version
 # like "1.0.0", "v0.1.0-prerelease.1", "my-app/0.1.0", "releases/v1.0.0", etc.
 # Various formats will be parsed into a VERSION and an optional PACKAGE_NAME, where
@@ -44,6 +48,66 @@ on:
   workflow_dispatch:
 
 jobs:
+  prepare-release:
+    name: prepare signed release commit
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Load release preparation secrets
+        id: release-secrets
+        uses: 1password/load-secrets-action@3a12b0ab99d9cd590a3e9b5a90ea017210ed9556 # v4
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          GH_RELEASE_AUTOMATION_TOKEN: op://Github Secrets/GH_RELEASE_AUTOMATION_TOKEN/credential
+          RELEASE_SIGNING_KEY: op://Github Secrets/RELEASE_SIGNING_KEY/private key?ssh-format=openssh
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          ref: main
+          persist-credentials: false
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+      - name: Cache cargo dependencies
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - name: Update versions and changelog
+        uses: MarcoIeni/release-plz-action@e8792575c7f2366cf6ff3ccc33ead9ace5b691c7 # v0.5.130
+        with:
+          command: update
+          version: 0.3.159
+        env:
+          GITHUB_TOKEN: ${{ steps.release-secrets.outputs.GH_RELEASE_AUTOMATION_TOKEN }}
+      - name: Configure signing and push release preparation commit
+        shell: bash
+        env:
+          GH_RELEASE_AUTOMATION_TOKEN: ${{ steps.release-secrets.outputs.GH_RELEASE_AUTOMATION_TOKEN }}
+          RELEASE_SIGNING_KEY: ${{ steps.release-secrets.outputs.RELEASE_SIGNING_KEY }}
+          RELEASE_SIGNING_NAME: ${{ vars.RELEASE_SIGNING_NAME }}
+          RELEASE_SIGNING_EMAIL: ${{ vars.RELEASE_SIGNING_EMAIL }}
+        run: |
+          set -euo pipefail
+          git add Cargo.toml Cargo.lock CHANGELOG.md
+          if git diff --cached --quiet; then
+            echo "No release preparation changes"
+            exit 0
+          fi
+          version="$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | select(.name == "lanyard-ssh-agent") | .version')"
+          signing_key_path="$RUNNER_TEMP/release-signing-key"
+          trap 'rm -f "$signing_key_path"' EXIT
+          test -n "$RELEASE_SIGNING_KEY"
+          printf '%s\n' "$RELEASE_SIGNING_KEY" > "$signing_key_path"
+          chmod 600 "$signing_key_path"
+          git config gpg.format ssh
+          git config user.signingkey "$signing_key_path"
+          git config commit.gpgsign true
+          git config user.name "${RELEASE_SIGNING_NAME:-release-plz-bot}"
+          git config user.email "${RELEASE_SIGNING_EMAIL:-release-plz-bot@users.noreply.github.com}"
+          git commit -S -m "chore(release): prepare v${version}"
+          auth="$(printf 'x-access-token:%s' "$GH_RELEASE_AUTOMATION_TOKEN" | base64 -w0)"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth}" push origin HEAD:main
+
   # Run 'dist plan' (or host) to determine what tasks we need to do
   plan:
     # This workflow has no pull_request trigger, so the legacy graph stays inert

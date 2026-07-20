@@ -300,6 +300,91 @@ fn main_branch_entrypoint_does_not_execute_the_legacy_tag_pipeline() -> Result<(
 }
 
 #[test]
+fn release_preparation_updates_main_without_a_release_pr() -> Result<(), Box<dyn Error>> {
+    let release = workflow(".github/workflows/release.yml")?;
+    let concurrency = release
+        .get("concurrency")
+        .ok_or("release workflow must serialize preparation and publication")?;
+    assert_eq!(
+        concurrency.get("group").and_then(Yaml::as_str),
+        Some("release-${{ github.ref }}")
+    );
+    assert_eq!(
+        concurrency
+            .get("cancel-in-progress")
+            .and_then(Yaml::as_bool),
+        Some(false)
+    );
+    let prepare = release
+        .get("jobs")
+        .and_then(|jobs| jobs.get("prepare-release"))
+        .ok_or("release workflow must define a prepare-release job")?;
+    assert_eq!(
+        prepare
+            .get("permissions")
+            .and_then(|permissions| permissions.get("contents"))
+            .and_then(Yaml::as_str),
+        Some("read")
+    );
+    assert_eq!(
+        prepare.get("if").and_then(Yaml::as_str),
+        Some("${{ github.ref == 'refs/heads/main' }}")
+    );
+    let checkout = prepare
+        .get("steps")
+        .and_then(Yaml::as_sequence)
+        .and_then(|steps| {
+            steps
+                .iter()
+                .find(|step| step.get("name").and_then(Yaml::as_str) == Some("Checkout repository"))
+        })
+        .ok_or("release preparation must check out the repository")?;
+    assert_eq!(
+        checkout
+            .get("with")
+            .and_then(|inputs| inputs.get("ref"))
+            .and_then(Yaml::as_str),
+        Some("main")
+    );
+    assert_eq!(
+        checkout
+            .get("with")
+            .and_then(|inputs| inputs.get("persist-credentials"))
+            .and_then(Yaml::as_bool),
+        Some(false)
+    );
+    let mut commands = Vec::new();
+    let mut scripts = Vec::new();
+    values_for_key(prepare, "command", &mut commands);
+    values_for_key(prepare, "run", &mut scripts);
+
+    assert_eq!(commands, ["update"]);
+    let step_names = prepare
+        .get("steps")
+        .and_then(Yaml::as_sequence)
+        .ok_or("release preparation steps must be a sequence")?
+        .iter()
+        .filter_map(|step| step.get("name").and_then(Yaml::as_str))
+        .collect::<Vec<_>>();
+    let update_index = step_names
+        .iter()
+        .position(|name| *name == "Update versions and changelog")
+        .ok_or("release-plz update step is missing")?;
+    let signing_index = step_names
+        .iter()
+        .position(|name| *name == "Configure signing and push release preparation commit")
+        .ok_or("scoped signing step is missing")?;
+    assert!(update_index < signing_index);
+    assert!(scripts.iter().any(|script| {
+        script.contains("git commit -S")
+            && script.contains("push origin HEAD:main")
+            && !script.contains("--force")
+    }));
+    assert!(!read(".github/workflows/release.yml")?.contains("release-pr"));
+    Ok(())
+}
+
+#[test]
 fn release_guide_documents_the_enabled_shared_workflow() -> Result<(), Box<dyn Error>> {
     let guide = read("docs/releases.md")?;
 
