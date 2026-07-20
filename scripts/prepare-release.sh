@@ -47,6 +47,19 @@ configure_signing() {
   git config user.email "${RELEASE_SIGNING_EMAIL:-release-plz-bot@users.noreply.github.com}"
 }
 
+if [[ -n "${RECOVERY_TAG:-}" ]]; then
+  tag="$RECOVERY_TAG"
+  configure_verification
+  if ! git rev-parse --verify --quiet "refs/tags/${tag}^{commit}" > /dev/null; then
+    echo "Recovery tag ${tag} is missing" >&2
+    exit 1
+  fi
+  git verify-tag "$tag"
+  release_commit="$(git rev-parse "refs/tags/${tag}^{commit}")"
+  publishing=true
+  exit 0
+fi
+
 if ! git diff --cached --quiet; then
   configure_signing
   git commit -S -m "chore(release): prepare v${version}"

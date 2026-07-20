@@ -54,7 +54,16 @@ jobs:
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
       - name: Cache cargo dependencies
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - name: Detect an unfinished signed release
+        id: recovery-state
+        shell: bash
+        env:
+          GH_RELEASE_AUTOMATION_TOKEN: ${{ steps.release-secrets.outputs.GH_RELEASE_AUTOMATION_TOKEN }}
+          RELEASE_SIGNING_KEY: ${{ steps.release-secrets.outputs.RELEASE_SIGNING_KEY }}
+          RELEASE_SIGNING_EMAIL: ${{ vars.RELEASE_SIGNING_EMAIL }}
+        run: scripts/detect-release-recovery.sh
       - name: Update versions and changelog
+        if: ${{ steps.recovery-state.outputs.recovering != 'true' }}
         uses: MarcoIeni/release-plz-action@e8792575c7f2366cf6ff3ccc33ead9ace5b691c7 # v0.5.130
         with:
           command: update
@@ -69,6 +78,7 @@ jobs:
           RELEASE_SIGNING_KEY: ${{ steps.release-secrets.outputs.RELEASE_SIGNING_KEY }}
           RELEASE_SIGNING_NAME: ${{ vars.RELEASE_SIGNING_NAME }}
           RELEASE_SIGNING_EMAIL: ${{ vars.RELEASE_SIGNING_EMAIL }}
+          RECOVERY_TAG: ${{ steps.recovery-state.outputs.tag }}
         run: scripts/prepare-release.sh
 
   # Run 'dist plan' (or host) to determine what tasks we need to do

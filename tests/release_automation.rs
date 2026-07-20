@@ -198,6 +198,79 @@ esac
     Ok((output, fs::read_to_string(command_log).unwrap_or_default()))
 }
 
+fn run_recovery_detection(
+    crate_status: &str,
+    github_status: &str,
+    github_draft: &str,
+) -> Result<(Output, String, String), Box<dyn Error>> {
+    let sandbox = tempfile::tempdir()?;
+    let bin = sandbox.path().join("bin");
+    fs::create_dir_all(&bin)?;
+    let command_log = sandbox.path().join("commands.log");
+    let github_output = sandbox.path().join("github-output");
+    write_executable(
+        &bin.join("git"),
+        r#"#!/usr/bin/env bash
+printf 'git %s\n' "$*" >> "$COMMAND_LOG"
+case "$1" in
+  tag) printf '%s\n' v1.2.3 ;;
+  rev-parse) printf '%s\n' old-release-sha ;;
+  config | verify-tag) ;;
+  *) exit 1 ;;
+esac
+"#,
+    )?;
+    write_executable(
+        &bin.join("curl"),
+        r#"#!/usr/bin/env bash
+printf 'curl %s\n' "$*" >> "$COMMAND_LOG"
+output=""
+while (($#)); do
+  if [[ "$1" == --output ]]; then
+    output="$2"
+    break
+  fi
+  shift
+done
+if [[ "$*" == *api.github.com* ]]; then
+  printf '{"draft":%s}\n' "$GITHUB_RELEASE_DRAFT" > "$output"
+  printf '%s' "$GITHUB_RELEASE_STATUS"
+else
+  printf '%s' "$CRATE_STATUS"
+fi
+"#,
+    )?;
+    write_executable(
+        &bin.join("ssh-keygen"),
+        "#!/usr/bin/env bash\nprintf '%s\\n' 'ssh-ed25519 AAAATEST'\n",
+    )?;
+    let path = format!(
+        "{}:{}",
+        bin.display(),
+        env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".to_owned())
+    );
+    let output = Command::new("bash")
+        .arg("scripts/detect-release-recovery.sh")
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .env("PATH", path)
+        .env("COMMAND_LOG", &command_log)
+        .env("GITHUB_OUTPUT", &github_output)
+        .env("RUNNER_TEMP", sandbox.path())
+        .env("CRATE_STATUS", crate_status)
+        .env("GITHUB_RELEASE_STATUS", github_status)
+        .env("GITHUB_RELEASE_DRAFT", github_draft)
+        .env("GITHUB_REPOSITORY", "jwilger/lanyard-ssh-agent")
+        .env("GH_RELEASE_AUTOMATION_TOKEN", "test-token")
+        .env("RELEASE_SIGNING_KEY", "test-private-key")
+        .env("RELEASE_SIGNING_EMAIL", "release@example.com")
+        .output()?;
+    Ok((
+        output,
+        fs::read_to_string(command_log).unwrap_or_default(),
+        fs::read_to_string(github_output).unwrap_or_default(),
+    ))
+}
+
 #[expect(
     clippy::literal_string_with_formatting_args,
     reason = "the literal contains Bash parameter expansion, not Rust formatting"
@@ -807,6 +880,74 @@ fn published_crate_resumes_incomplete_github_release() -> Result<(), Box<dyn Err
             run_release_state(false, "200", status, draft, true, "release-sha", false)?;
         assert!(!invalid_release.status.success());
         assert!(invalid_release_outputs.contains("publishing=false"));
+    }
+    Ok(())
+}
+
+#[test]
+fn unfinished_release_is_selected_before_preparing_a_new_version() -> Result<(), Box<dyn Error>> {
+    let (detected, commands, outputs) = run_recovery_detection("200", "200", "true")?;
+    assert!(detected.status.success());
+    assert!(commands.contains("verify-tag v1.2.3"));
+    assert!(outputs.contains("recovering=true"));
+    assert!(outputs.contains("tag=v1.2.3"));
+    assert!(outputs.contains("release-commit=old-release-sha"));
+
+    let release = workflow(".github/workflows/release.yml")?;
+    let steps = release
+        .get("jobs")
+        .and_then(|jobs| jobs.get("prepare-release"))
+        .and_then(|job| job.get("steps"))
+        .and_then(Yaml::as_sequence)
+        .ok_or("prepare-release steps must be a sequence")?;
+    let recovery_index = steps
+        .iter()
+        .position(|step| step.get("id").and_then(Yaml::as_str) == Some("recovery-state"))
+        .ok_or("release recovery must be detected")?;
+    let update_index = steps
+        .iter()
+        .position(|step| {
+            step.get("name").and_then(Yaml::as_str) == Some("Update versions and changelog")
+        })
+        .ok_or("release-plz update step is missing")?;
+    assert!(recovery_index < update_index);
+    assert_eq!(
+        steps
+            .get(update_index)
+            .and_then(|step| step.get("if"))
+            .and_then(Yaml::as_str),
+        Some("${{ steps.recovery-state.outputs.recovering != 'true' }}")
+    );
+    Ok(())
+}
+
+#[test]
+fn release_recovery_detection_is_fail_closed_for_external_states() -> Result<(), Box<dyn Error>> {
+    let cases = [
+        ("404", "404", "false", true, Some(true)),
+        ("404", "200", "true", true, Some(true)),
+        ("200", "404", "false", true, Some(true)),
+        ("200", "200", "false", true, Some(false)),
+        ("404", "200", "false", false, None),
+        ("503", "404", "false", false, None),
+        ("200", "503", "false", false, None),
+        ("200", "200", "null", false, None),
+    ];
+    for (crate_status, github_status, draft, succeeds, recovering) in cases {
+        let (output, _, outputs) =
+            run_recovery_detection(crate_status, github_status, draft)?;
+        assert_eq!(
+            output.status.success(),
+            succeeds,
+            "crate={crate_status} github={github_status} draft={draft}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        match recovering {
+            Some(expected) => {
+                assert!(outputs.contains(&format!("recovering={expected}")));
+            }
+            None => assert!(outputs.is_empty()),
+        }
     }
     Ok(())
 }
