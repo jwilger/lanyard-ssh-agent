@@ -56,13 +56,24 @@ fn retry_contended_start<T>(
         }
     }
     Err(last_contention.unwrap_or_else(|| {
-        io::Error::new(ErrorKind::InvalidInput, "at least one start attempt is required")
+        io::Error::new(
+            ErrorKind::InvalidInput,
+            "at least one start attempt is required",
+        )
     }))
+}
+
+fn retry_available_port_start<T>(
+    maximum_attempts: u8,
+    mut allocate: impl FnMut() -> io::Result<u16>,
+    mut attempt: impl FnMut(u16) -> io::Result<StartAttempt<T>>,
+) -> io::Result<T> {
+    retry_contended_start(maximum_attempts, || attempt(allocate()?))
 }
 
 #[test]
 fn retries_when_an_sshd_port_candidate_is_claimed() -> io::Result<()> {
-    let mut attempts = 0_u8;
+    let mut attempts = 0u8;
 
     let selected = retry_contended_start(3, || {
         attempts = attempts.saturating_add(1);
@@ -72,11 +83,64 @@ fn retries_when_an_sshd_port_candidate_is_claimed() -> io::Result<()> {
                 "injected loopback port claimant",
             )));
         }
-        Ok(StartAttempt::Started(22_u16))
+        Ok(StartAttempt::Started(22u16))
     })?;
 
     assert_eq!(selected, 22);
     assert_eq!(attempts, 2);
+    Ok(())
+}
+
+#[test]
+fn allocates_a_fresh_port_for_each_sshd_start_attempt() -> io::Result<()> {
+    let mut attempted_ports = Vec::new();
+    let mut candidates = [41_001u16, 41_002u16].into_iter();
+
+    let selected = retry_available_port_start(
+        3,
+        || {
+            candidates
+                .next()
+                .ok_or_else(|| io::Error::other("candidate sequence exhausted"))
+        },
+        |port| {
+            attempted_ports.push(port);
+            if attempted_ports.len() == 1 {
+                return Ok(StartAttempt::Contended(io::Error::new(
+                    ErrorKind::AddrInUse,
+                    "injected loopback port claimant",
+                )));
+            }
+            Ok(StartAttempt::Started(port))
+        },
+    )?;
+
+    assert_eq!(attempted_ports.len(), 2);
+    assert_ne!(attempted_ports.first(), attempted_ports.last());
+    assert_eq!(attempted_ports.last(), Some(&selected));
+    Ok(())
+}
+
+#[test]
+fn distinguishes_port_contention_from_other_sshd_start_failures() -> io::Result<()> {
+    let claimant = TcpListener::bind(("127.0.0.1", 0))?;
+    let claimed_port = claimant.local_addr()?.port();
+    assert!(port_is_claimed(claimed_port)?);
+
+    let free_port = available_port()?;
+    assert!(!port_is_claimed(free_port)?);
+
+    let mut attempts = 0u8;
+    let failure: io::Result<()> = retry_available_port_start(3, available_port, |port| {
+        attempts = attempts.saturating_add(1);
+        classify_sshd_start_failure(port, io::Error::other("invalid sshd configuration"))
+    });
+    let error = match failure {
+        Ok(()) => return Err(io::Error::other("startup failure was unexpectedly retried")),
+        Err(error) => error,
+    };
+    assert_eq!(error.kind(), ErrorKind::Other);
+    assert_eq!(attempts, 1);
     Ok(())
 }
 
@@ -137,29 +201,15 @@ fn authenticates_and_signs_through_lanyard() -> Result<(), Box<dyn Error>> {
     let public_key = fs::read_to_string(&public_key_path)?;
     let authorized_keys = directory.path().join("authorized_keys");
     write_private(&authorized_keys, public_key.as_bytes())?;
-    let port = available_port()?;
-    let sshd_config = directory.path().join("sshd_config");
     let user = env::var("USER")?;
-    write_private(
-        &sshd_config,
-        format!(
-            "Port {port}\nListenAddress 127.0.0.1\nHostKey {}\nAuthorizedKeysFile {}\nPasswordAuthentication no\nKbdInteractiveAuthentication no\nUsePAM no\nStrictModes no\nPidFile {}\nAllowUsers {user}\n",
-            host_key.display(),
-            authorized_keys.display(),
-            directory.path().join("sshd.pid").display(),
-        )
-        .as_bytes(),
-    )?;
     let sshd_executable = executable("sshd")?;
-    let mut sshd = ChildGuard::spawn(
-        Command::new(&sshd_executable)
-            .args(["-D", "-e", "-f"])
-            .arg(&sshd_config)
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped()),
-        "sshd",
+    let (port, _sshd) = start_sshd(
+        directory.path(),
+        &sshd_executable,
+        &host_key,
+        &authorized_keys,
+        &user,
     )?;
-    wait_for_port(port, &mut sshd)?;
 
     run_checked(
         Command::new("ssh")
@@ -327,12 +377,70 @@ fn available_port() -> io::Result<u16> {
     Ok(TcpListener::bind(("127.0.0.1", 0))?.local_addr()?.port())
 }
 
+fn port_is_claimed(port: u16) -> io::Result<bool> {
+    match TcpListener::bind(("127.0.0.1", port)) {
+        Ok(listener) => {
+            drop(listener);
+            Ok(false)
+        }
+        Err(error) if error.kind() == ErrorKind::AddrInUse => Ok(true),
+        Err(error) => Err(error),
+    }
+}
+
+fn classify_sshd_start_failure<T>(port: u16, error: io::Error) -> io::Result<StartAttempt<T>> {
+    if port_is_claimed(port)? {
+        Ok(StartAttempt::Contended(error))
+    } else {
+        Err(error)
+    }
+}
+
+fn start_sshd(
+    directory: &Path,
+    executable: &Path,
+    host_key: &Path,
+    authorized_keys: &Path,
+    user: &str,
+) -> io::Result<(u16, ChildGuard)> {
+    let mut attempt_index = 0u8;
+    retry_available_port_start(5, available_port, |port| {
+        attempt_index = attempt_index.saturating_add(1);
+        let config = directory.join(format!("sshd-{attempt_index}.conf"));
+        let pid_file = directory.join(format!("sshd-{attempt_index}.pid"));
+        write_private(
+            &config,
+            format!(
+                "Port {port}\nListenAddress 127.0.0.1\nHostKey {}\nAuthorizedKeysFile {}\nPasswordAuthentication no\nKbdInteractiveAuthentication no\nUsePAM no\nStrictModes no\nPidFile {}\nAllowUsers {user}\n",
+                host_key.display(),
+                authorized_keys.display(),
+                pid_file.display(),
+            )
+            .as_bytes(),
+        )?;
+        let mut child = ChildGuard::spawn(
+            Command::new(executable)
+                .args(["-D", "-e", "-f"])
+                .arg(config)
+                .stdout(Stdio::null())
+                .stderr(Stdio::piped()),
+            "sshd",
+        )?;
+        match wait_for_sshd(port, &pid_file, &mut child) {
+            Ok(()) => Ok(StartAttempt::Started((port, child))),
+            Err(error) => classify_sshd_start_failure(port, error),
+        }
+    })
+}
+
 fn wait_for_path(path: &Path, child: &mut ChildGuard) -> io::Result<()> {
     wait_until(child, || UnixStream::connect(path).is_ok())
 }
 
-fn wait_for_port(port: u16, child: &mut ChildGuard) -> io::Result<()> {
-    wait_until(child, || TcpStream::connect(("127.0.0.1", port)).is_ok())
+fn wait_for_sshd(port: u16, pid_file: &Path, child: &mut ChildGuard) -> io::Result<()> {
+    wait_until(child, || {
+        pid_file.exists() && TcpStream::connect(("127.0.0.1", port)).is_ok()
+    })
 }
 
 fn wait_until(child: &mut ChildGuard, ready: impl Fn() -> bool) -> io::Result<()> {
@@ -340,11 +448,14 @@ fn wait_until(child: &mut ChildGuard, ready: impl Fn() -> bool) -> io::Result<()
         .checked_add(Duration::from_secs(5))
         .ok_or_else(|| io::Error::other("readiness deadline overflowed"))?;
     while Instant::now() < deadline {
-        if ready() {
-            return Ok(());
-        }
         if child.child.try_wait()?.is_some() {
             return Err(child.failure("exited before becoming ready"));
+        }
+        if ready() {
+            if child.child.try_wait()?.is_some() {
+                return Err(child.failure("exited while becoming ready"));
+            }
+            return Ok(());
         }
         thread::sleep(Duration::from_millis(20));
     }
