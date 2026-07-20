@@ -216,6 +216,41 @@ test "${PUBLISH_FAIL:-0}" != 1
     Ok((output, fs::read_to_string(command_log).unwrap_or_default()))
 }
 
+fn run_publish_release(existing: &str) -> Result<(Output, String), Box<dyn Error>> {
+    let sandbox = tempfile::tempdir()?;
+    let bin = sandbox.path().join("bin");
+    fs::create_dir_all(&bin)?;
+    let command_log = sandbox.path().join("commands.log");
+    write_executable(
+        &bin.join("gh"),
+        r#"#!/usr/bin/env bash
+set -euo pipefail
+printf 'gh %s\n' "$*" >> "$COMMAND_LOG"
+if [[ "$*" == "release view "* ]]; then
+  case "$EXISTING_RELEASE" in
+    missing) exit 1 ;;
+    draft) printf '%s\n' true ;;
+    public) printf '%s\n' false ;;
+  esac
+fi
+"#,
+    )?;
+    let path = format!(
+        "{}:{}",
+        bin.display(),
+        env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".to_owned())
+    );
+    let output = Command::new("bash")
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/publish-release.sh"))
+        .current_dir(sandbox.path())
+        .env("PATH", path)
+        .env("COMMAND_LOG", &command_log)
+        .env("EXISTING_RELEASE", existing)
+        .env("RELEASE_TAG", "v1.2.3")
+        .output()?;
+    Ok((output, fs::read_to_string(command_log).unwrap_or_default()))
+}
+
 #[expect(
     clippy::pattern_type_mismatch,
     reason = "match ergonomics keep the recursive YAML traversal readable"
@@ -300,7 +335,8 @@ fn dist_installer_verifies_pinned_archives_before_execution() -> Result<(), Box<
 }
 
 #[test]
-fn dist_grants_repository_write_access_only_to_the_host_job() -> Result<(), Box<dyn Error>> {
+fn release_write_access_is_limited_to_staging_and_final_publication() -> Result<(), Box<dyn Error>>
+{
     let release = workflow(".github/workflows/release.yml")?;
     let jobs = release
         .get("jobs")
@@ -320,7 +356,15 @@ fn dist_grants_repository_write_access_only_to_the_host_job() -> Result<(), Box<
             .and_then(Yaml::as_str),
         Some("write")
     );
+    assert_eq!(
+        jobs.get("announce")
+            .and_then(|announce| announce.get("permissions"))
+            .and_then(|permissions| permissions.get("contents"))
+            .and_then(Yaml::as_str),
+        Some("write")
+    );
     for job_name in [
+        "host",
         "plan",
         "build-local-artifacts",
         "build-global-artifacts",
@@ -748,6 +792,42 @@ fn draft_release_precedes_idempotent_crates_io_publication() -> Result<(), Box<d
         run_publish_crate("404\n404\n404\n404\n", "1.2.3", false)?;
     assert!(!never_visible.status.success());
     assert_eq!(never_visible_log.matches("cargo publish").count(), 1);
+    Ok(())
+}
+
+#[test]
+fn github_release_becomes_public_only_after_crates_io() -> Result<(), Box<dyn Error>> {
+    let release = workflow(".github/workflows/release.yml")?;
+    let announce = release
+        .get("jobs")
+        .and_then(|jobs| jobs.get("announce"))
+        .ok_or("release workflow must announce the release")?;
+    let dependencies = announce
+        .get("needs")
+        .and_then(Yaml::as_sequence)
+        .ok_or("announcement must declare dependencies")?;
+    assert!(dependencies.contains(&Yaml::String("host".to_owned())));
+    assert!(dependencies.contains(&Yaml::String("publish-crate".to_owned())));
+
+    let mut scripts = Vec::new();
+    values_for_key(announce, "run", &mut scripts);
+    assert!(scripts.contains(&"scripts/publish-release.sh"));
+
+    let (draft, draft_log) = run_publish_release("draft")?;
+    assert!(draft.status.success());
+    assert!(draft_log.contains("release edit v1.2.3 --draft=false"));
+
+    let (public, public_log) = run_publish_release("public")?;
+    assert!(public.status.success());
+    assert!(!public_log.contains("release edit"));
+
+    let (missing, missing_log) = run_publish_release("missing")?;
+    assert!(!missing.status.success());
+    assert!(!missing_log.contains("release edit"));
+
+    let (invalid, invalid_log) = run_publish_release("invalid")?;
+    assert!(!invalid.status.success());
+    assert!(!invalid_log.contains("release edit"));
     Ok(())
 }
 

@@ -261,8 +261,6 @@ jobs:
       - build-global-artifacts
     # Only run if we're "publishing", and only if plan, local and global didn't fail (skipped is fine)
     if: ${{ always() && needs.plan.result == 'success' && needs.plan.outputs.publishing == 'true' && (needs.build-global-artifacts.result == 'skipped' || needs.build-global-artifacts.result == 'success') && (needs.build-local-artifacts.result == 'skipped' || needs.build-local-artifacts.result == 'success') }}
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     permissions:
       contents: write
     runs-on: "ubuntu-22.04"
@@ -282,6 +280,7 @@ jobs:
           rm -f artifacts/*-dist-manifest.json
       - name: Stage draft GitHub Release
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ needs.plan.outputs.tag }}
           RELEASE_COMMIT: "${{ github.sha }}"
         run: scripts/stage-release.sh
@@ -319,13 +318,18 @@ jobs:
     needs:
       - plan
       - host
-    # use "always() && ..." to allow us to wait for all publish jobs while
-    # still allowing individual publish jobs to skip themselves (for prereleases).
-    # "host" however must run to completion, no skipping allowed!
-    if: ${{ always() && needs.host.result == 'success' }}
-    runs-on: "ubuntu-22.04"
+      - publish-crate
+    if: ${{ always() && needs.plan.outputs.publishing == 'true' && needs.host.result == 'success' && needs.publish-crate.result == 'success' }}
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - name: Checkout release scripts
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
-          submodules: recursive
+      - name: Make GitHub Release public
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+        run: scripts/publish-release.sh
