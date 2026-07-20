@@ -292,7 +292,10 @@ fn main_branch_entrypoint_does_not_execute_the_legacy_tag_pipeline() -> Result<(
         .and_then(|plan| plan.get("if"))
         .and_then(Yaml::as_str);
 
-    assert_eq!(plan_condition, Some("${{ false }}"));
+    assert_eq!(
+        plan_condition,
+        Some("${{ github.event_name == 'pull_request' }}")
+    );
     Ok(())
 }
 

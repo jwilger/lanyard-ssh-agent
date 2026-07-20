@@ -46,7 +46,9 @@ on:
 jobs:
   # Run 'dist plan' (or host) to determine what tasks we need to do
   plan:
-    if: ${{ false }} # Replaced incrementally by the trunk release preparation job.
+    # This workflow has no pull_request trigger, so the legacy graph stays inert
+    # until it is replaced by the staged trunk publisher.
+    if: ${{ github.event_name == 'pull_request' }}
     runs-on: "ubuntu-22.04"
     outputs:
       val: ${{ steps.plan.outputs.manifest }}
