@@ -15,6 +15,8 @@ Successful changes on main currently do not reliably produce a release. The conf
 
 ## Acceptance criteria
 
+- [ ] The release workflow actually runs release-plz 0.3.159 update and applies the natural semantic version and changelog derived from conventional commit history.
+
 ## Subtasks
 
 ## Notes / Log
