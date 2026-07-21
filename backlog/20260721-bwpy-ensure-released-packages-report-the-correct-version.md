@@ -15,6 +15,8 @@ Published packages should identify themselves with the same version as the relea
 
 ## Acceptance criteria
 
+- [ ] The Nix package metadata for a tagged release reports the same version as that tag and the packaged executable.
+
 ## Subtasks
 
 ## Notes / Log
