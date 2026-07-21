@@ -15,6 +15,8 @@ Promote Lanyard to production-ready 1.0.0, update all public documentation and w
 
 ## Acceptance criteria
 
+- [ ] Cargo and generated release metadata identify version 1.0.0.
+
 ## Subtasks
 
 ## Notes / Log
