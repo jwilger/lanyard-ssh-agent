@@ -26,6 +26,7 @@ registry_status() {
     --max-time 30 \
     --silent \
     --show-error \
+    --header 'User-Agent: lanyard-ssh-agent-release-check (https://github.com/jwilger/lanyard-ssh-agent)' \
     --output /dev/null \
     --write-out '%{http_code}' \
     "$registry_url"

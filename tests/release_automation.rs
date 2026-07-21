@@ -1396,6 +1396,9 @@ fn draft_release_precedes_idempotent_crates_io_publication() -> Result<(), Box<d
     );
     assert!(published_log.contains("cargo publish --locked token=set"));
     assert!(!published_log.contains("test-token"));
+    assert!(published_log.contains(
+        "--header User-Agent: lanyard-ssh-agent-release-check (https://github.com/jwilger/lanyard-ssh-agent)"
+    ));
 
     let (ambiguous_publish, ambiguous_publish_log) =
         run_publish_crate("404\n200\n", "1.2.3", true)?;
