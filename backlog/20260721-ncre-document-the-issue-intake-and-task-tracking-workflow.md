@@ -18,3 +18,5 @@ Make it clear where incoming reports are discussed, where actionable work is tra
 ## Subtasks
 
 ## Notes / Log
+
+- 2026-07-21: GitHub Issues serve only as a temporary inbox and discussion area. Once a report becomes actionable, deduplicate it against the Tiber board, create or update the appropriate Tiber ticket with the source link and useful discussion context, then close the GitHub issue with a comment naming the Tiber reference. Tiber is the authoritative work tracker.
