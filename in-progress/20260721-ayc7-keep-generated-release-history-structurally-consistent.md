@@ -16,7 +16,7 @@ claim:
 
 ## Acceptance criteria
 
-- [ ] CHANGELOG.md contains one top-level title and one introductory section.
+- [x] CHANGELOG.md contains one top-level title and one introductory section.
 - [ ] A natural version release can append an entry without duplicating document-level boilerplate.
 
 ## Subtasks
