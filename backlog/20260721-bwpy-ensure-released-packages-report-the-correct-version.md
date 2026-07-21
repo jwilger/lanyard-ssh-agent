@@ -9,6 +9,8 @@ pr_mr_status:
 
 ## Summary
 
+Published packages should identify themselves with the same version as the release users selected.
+
 ## Context / Why
 
 ## Acceptance criteria
