@@ -1292,7 +1292,6 @@ fn release_jobs_checkout_the_authoritative_tag_commit() -> Result<(), Box<dyn Er
             "${{ needs.plan.outputs.release-commit }}",
         ),
         ("host", "${{ needs.plan.outputs.release-commit }}"),
-        ("publish-crate", "${{ needs.plan.outputs.release-commit }}"),
         ("announce", "${{ needs.plan.outputs.release-commit }}"),
     ];
     for (job_name, expected_ref) in expected {
@@ -1301,6 +1300,57 @@ fn release_jobs_checkout_the_authoritative_tag_commit() -> Result<(), Box<dyn Er
         values_for_key(job, "ref", &mut refs);
         assert_eq!(refs, [expected_ref], "{job_name} checkout ref");
     }
+
+    let publish = jobs
+        .get("publish-crate")
+        .ok_or("release workflow must define a crate publication job")?;
+    let steps = publish
+        .get("steps")
+        .and_then(Yaml::as_sequence)
+        .ok_or("crate publication must define steps")?;
+    let checkout = |name| {
+        steps
+            .iter()
+            .find(|step| step.get("name").and_then(Yaml::as_str) == Some(name))
+    };
+    let source = checkout("Checkout release source").ok_or("release source checkout is missing")?;
+    let source_with = source
+        .get("with")
+        .ok_or("release source checkout has no inputs")?;
+    assert_eq!(
+        source_with.get("ref").and_then(Yaml::as_str),
+        Some("${{ needs.plan.outputs.release-commit }}")
+    );
+    assert!(source_with.get("path").is_none());
+    assert_eq!(
+        source_with
+            .get("persist-credentials")
+            .and_then(Yaml::as_bool),
+        Some(false)
+    );
+
+    let tooling = checkout("Checkout verified release tooling")
+        .ok_or("verified release tooling checkout is missing")?;
+    let tooling_with = tooling
+        .get("with")
+        .ok_or("tooling checkout has no inputs")?;
+    assert_eq!(
+        tooling_with.get("ref").and_then(Yaml::as_str),
+        Some("${{ github.sha }}")
+    );
+    assert_eq!(
+        tooling_with.get("path").and_then(Yaml::as_str),
+        Some("release-tools")
+    );
+    assert_eq!(
+        tooling_with
+            .get("persist-credentials")
+            .and_then(Yaml::as_bool),
+        Some(false)
+    );
+    let mut scripts = Vec::new();
+    values_for_key(publish, "run", &mut scripts);
+    assert!(scripts.contains(&"release-tools/scripts/publish-crate.sh"));
     Ok(())
 }
 
@@ -1368,7 +1418,7 @@ fn draft_release_precedes_idempotent_crates_io_publication() -> Result<(), Box<d
 
     let mut scripts = Vec::new();
     values_for_key(publish, "run", &mut scripts);
-    assert!(scripts.contains(&"scripts/publish-crate.sh"));
+    assert!(scripts.contains(&"release-tools/scripts/publish-crate.sh"));
     let mut secrets = Vec::new();
     values_for_key(publish, "CARGO_REGISTRY_TOKEN", &mut secrets);
     assert_eq!(

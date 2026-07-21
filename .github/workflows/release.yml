@@ -300,6 +300,12 @@ jobs:
         with:
           ref: ${{ needs.plan.outputs.release-commit }}
           persist-credentials: false
+      - name: Checkout verified release tooling
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.sha }}
+          path: release-tools
+          persist-credentials: false
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
       - name: Cache cargo dependencies
@@ -314,7 +320,7 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.publish-secrets.outputs.CARGO_REGISTRY_TOKEN }}
           RELEASE_TAG: ${{ needs.plan.outputs.tag }}
-        run: scripts/publish-crate.sh
+        run: release-tools/scripts/publish-crate.sh
 
   announce:
     needs:
