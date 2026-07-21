@@ -4,6 +4,10 @@ Lanyard is a resilient SSH-agent switching proxy. It gives long-lived shells
 and terminal multiplexers one stable `SSH_AUTH_SOCK`, then routes each request
 to an available forwarded or local agent.
 
+Version 1.0 is production-ready for its intended environment: a single-owner
+Linux workstation whose local account, processes, tools, and configuration are
+trusted. See the security policy for the precise trust boundary.
+
 The daemon discovers same-user OpenSSH agent sockets under `/tmp/ssh-*`, accepts
 explicit registrations at runtime, and keeps a configured local agent (normally
 1Password) as the final fallback. Identity listings are merged and deduplicated;

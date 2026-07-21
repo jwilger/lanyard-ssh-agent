@@ -7,6 +7,14 @@ import {
 } from "../src/lib/adr-reference";
 
 describe("the generated documentation site", () => {
+  it("publishes the manual as production-ready", async () => {
+    const home = await readFile("dist/index.html", "utf8");
+
+    expect(home).toContain("PRODUCTION READY");
+    expect(home).toContain("Version 1.0");
+    expect(home).not.toContain("PRE-RELEASE");
+  });
+
   it("introduces Lanyard at the repository URL", async () => {
     const home = await readFile("dist/index.html", "utf8");
 

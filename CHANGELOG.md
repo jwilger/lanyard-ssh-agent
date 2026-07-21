@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0](https://github.com/jwilger/lanyard-ssh-agent/compare/v0.1.2...v1.0.0) - 2026-07-21
+
+### Changed
+
+- Declare Lanyard production-ready for its documented single-owner Linux
+  workstation trust boundary.
+- Publish the stable 1.0 status throughout the README, security policy, and
+  operator website.
+
 ## [0.1.2](https://github.com/jwilger/lanyard-ssh-agent/compare/v0.1.1...v0.1.2) - 2026-07-21
 
 ### Fixed

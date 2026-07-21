@@ -32,13 +32,16 @@ const stagedReleaseAdr = requireAdr(await getAdrs(), STAGED_RELEASE_ADR);
       >
     </table>
     <h2>Versioning</h2><p>
-      Every main revision must pass the full repository check before the
-      release state machine can start. Release-plz then derives changelog
-      entries and versions from Conventional Commits, and the trunk-based
-      workflow signs the release commit and tag. Cargo-dist builds platform
-      artifacts from that exact tag commit.
-      Third-party actions are pinned to immutable revisions so changes to the
-      release machinery are reviewable.
+      Version 1.0 is the production-ready release for Lanyard's documented
+      single-owner Linux workstation trust boundary. Semantic versioning governs
+      compatibility from this release onward.
+    </p><p>
+      Every main revision must pass the full repository check before the release
+      state machine can start. Release-plz then derives changelog entries and
+      versions from Conventional Commits, and the trunk-based workflow signs the
+      release commit and tag. Cargo-dist builds platform artifacts from that
+      exact tag commit. Third-party actions are pinned to immutable revisions so
+      changes to the release machinery are reviewable.
     </p>
     <h2>Publication order</h2><ol>
       <li>Build and checksum both Linux archives.</li><li>

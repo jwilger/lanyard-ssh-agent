@@ -1,8 +1,8 @@
 # Security policy
 
-Lanyard is pre-release software and should not yet be trusted with production
-credentials. Please report vulnerabilities privately through GitHub's security
-advisory interface rather than a public issue.
+Lanyard 1.0 is production-ready within the trust boundary described below.
+Please report vulnerabilities privately through GitHub's security advisory
+interface rather than a public issue.
 
 The intended trust boundary is a single-owner Linux workstation. The owner,
 their local processes, installed tools, environment, and configuration are
