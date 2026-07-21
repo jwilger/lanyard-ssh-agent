@@ -715,6 +715,16 @@ fn crate_manifest_is_ready_for_crates_io() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
+fn nix_package_derives_its_version_from_the_cargo_manifest() -> Result<(), Box<dyn Error>> {
+    let flake = read("flake.nix")?;
+
+    assert!(flake.contains("builtins.fromTOML (builtins.readFile ./Cargo.toml)"));
+    assert!(flake.contains("version = cargoManifest.package.version;"));
+    assert!(!flake.contains("version = \"0.1."));
+    Ok(())
+}
+
+#[test]
 fn release_plz_only_prepares_release_metadata() -> Result<(), Box<dyn Error>> {
     let config = release_plz_config()?;
     let workspace = config
@@ -1713,6 +1723,7 @@ fn release_docs_describe_the_single_staged_pipeline() -> Result<(), Box<dyn Erro
     assert!(guide.contains("full repository check succeeds"));
     assert!(guide.contains("Rapid pushes can coalesce"));
     assert!(guide.contains("No release pull request"));
+    assert!(guide.contains("Nix package reads its version directly from `Cargo.toml`"));
     assert!(!guide.contains("shared workflow"));
     assert!(!guide.contains("release-plz pull request"));
     assert!(superseded.contains("Superseded by ADR 0006"));

@@ -19,7 +19,8 @@ unreleased commits in its naturally calculated version and changelog.
    produces a change, Lanyard creates a signed release-preparation commit,
    pushes it directly to `main`, and continues in the same non-cancelled run.
    The run triggered by that push will later observe the completed release and
-   become a no-op.
+   become a no-op. These are the only version-bearing files release-plz must
+   edit: the Nix package reads its version directly from `Cargo.toml`.
 3. The active run creates or verifies a signed annotated `vX.Y.Z` tag and
    resolves its commit. An existing verified tag remains authoritative if
    `main` has advanced. Every later checkout uses that exact commit.

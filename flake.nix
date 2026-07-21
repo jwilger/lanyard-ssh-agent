@@ -32,6 +32,7 @@
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
+          cargoManifest = builtins.fromTOML (builtins.readFile ./Cargo.toml);
           toolchain = fenix.packages.${system}.stable.withComponents [
             "cargo"
             "clippy"
@@ -44,7 +45,7 @@
           };
           package = rustPlatform.buildRustPackage {
             pname = "lanyard-ssh-agent";
-            version = "0.1.0";
+            version = cargoManifest.package.version;
             src = self;
             cargoLock.lockFile = ./Cargo.lock;
             nativeCheckInputs = [ pkgs.jq ];
