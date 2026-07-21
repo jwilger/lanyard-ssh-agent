@@ -18,7 +18,7 @@ Make it clear where incoming reports are discussed, where actionable work is tra
 
 ## Acceptance criteria
 
-- [ ] AGENTS.md defines GitHub Issues as a temporary inbox and discussion area and Tiber as the authoritative task tracker.
+- [x] AGENTS.md defines GitHub Issues as a temporary inbox and discussion area and Tiber as the authoritative task tracker.
 - [ ] Contributor-facing documentation explains how to deduplicate, capture source context, and close a GitHub issue after Tiber capture.
 - [ ] The documented workflow distinguishes actionable work from reports that still need discussion or clarification.
 
