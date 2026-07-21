@@ -18,6 +18,21 @@ git merge-base --is-ancestor origin/main HEAD
 git push origin HEAD:main
 ```
 
-Tasks are managed by Tiber on its orphan `tasks` branch. Do not edit task data
+## Issues and tasks
+
+GitHub Issues are a temporary inbox and discussion area. They are useful for
+reporting a problem, proposing work, and clarifying whether a report is
+actionable, but they are not the authoritative task tracker.
+
+When an issue becomes actionable, first search the Tiber board to avoid
+creating duplicate work. Create a Tiber ticket if necessary, or update the
+existing ticket, and preserve the GitHub issue URL plus any context needed from
+the discussion. After confirming that Tiber represents the actionable scope,
+comment on the GitHub issue with the Tiber reference and close the issue. Keep
+the GitHub issue open only while clarification or discussion is still needed;
+do not leave the same work open in both systems.
+
+Tasks are managed by Tiber on its orphan `tasks` branch. Tiber is authoritative
+for task status, priority, dependencies, and completion. Do not edit task data
 by hand. Commit messages that finish a task include a `Closes:` trailer with
 the Tiber reference.

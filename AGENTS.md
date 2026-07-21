@@ -1,5 +1,22 @@
 # Agent workflow
 
+## Issue intake and task tracking
+
+GitHub Issues are an inbox and discussion area, not the repository's task
+tracker. Keep an issue open while a report still needs clarification or
+discussion. Once the work is actionable:
+
+1. Search the Tiber board for an existing ticket that covers the work.
+2. Create a Tiber ticket when none exists, or update the existing ticket with
+   the GitHub issue URL and any context needed to preserve the discussion.
+3. Verify that the actionable scope is represented in Tiber.
+4. Comment on the GitHub issue with the Tiber reference and close the issue.
+
+Do not leave captured work open in both systems, and do not close the GitHub
+issue before its actionable work and source context are recorded in Tiber.
+Tiber is the authoritative source for task status, priority, dependencies, and
+completion.
+
 All ticket implementation must happen in an isolated linked worktree. Treat the
 primary checkout as read-only coordination state; its pre-commit and pre-push
 guards intentionally reject publication from there.
