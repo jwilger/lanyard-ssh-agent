@@ -1414,6 +1414,10 @@ fn verified_artifacts_are_staged_in_a_draft_release() -> Result<(), Box<dyn Erro
 }
 
 #[test]
+#[expect(
+    clippy::cognitive_complexity,
+    reason = "the assertions form one end-to-end draft recovery state matrix"
+)]
 fn draft_release_staging_is_retryable_but_never_accepts_a_public_release()
 -> Result<(), Box<dyn Error>> {
     let (missing, missing_log) = run_stage_release("missing")?;
