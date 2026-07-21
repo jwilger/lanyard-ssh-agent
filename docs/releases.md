@@ -42,7 +42,15 @@ is the final announcement.
 The workflow serializes runs for `main` and does not cancel an in-progress
 release. Its state transitions are idempotent:
 
-- an existing draft is reused and its assets are replaced;
+- an existing draft is reused only when it has exactly the expected uniquely
+  named assets, every upload is complete, and each downloaded file matches
+  GitHub's recorded size and SHA-256 digest;
+- recovery validates the bytes already staged on GitHub rather than comparing
+  them with a fresh build, because release archives are not guaranteed to be
+  byte-for-byte reproducible;
+- a newly uploaded or replacement draft is reloaded from GitHub and each
+  downloaded asset must match both GitHub's metadata and the local file that
+  was just uploaded before publication can continue;
 - an already-published crate is not published twice;
 - a failed or ambiguous `cargo publish` is followed by a bounded crates.io
   visibility check;

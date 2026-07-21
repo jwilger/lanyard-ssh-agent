@@ -199,6 +199,10 @@ fn run_release_state(
     )
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "the mock API scenarios stay together so their state transitions remain auditable"
+)]
 fn run_stage_release(existing: &str) -> Result<(Output, String), Box<dyn Error>> {
     let sandbox = tempfile::tempdir()?;
     let bin = sandbox.path().join("bin");
@@ -217,8 +221,8 @@ set -euo pipefail
 printf 'gh %s\n' "$*" >> "$COMMAND_LOG"
 if [[ "$*" == "release view "* ]]; then
   case "$EXISTING_RELEASE" in
-    missing | error) exit 1 ;;
-    draft | draft-missing | draft-mismatch) printf '%s\n' true ;;
+    missing | missing-after-upload-incomplete | missing-after-upload-invalid | error) exit 1 ;;
+    draft | draft-duplicate-asset | draft-invalid-content | draft-incomplete | draft-missing | draft-mismatch) printf '%s\n' true ;;
     public) printf '%s\n' false ;;
   esac
 fi
@@ -237,13 +241,62 @@ while (($#)); do
   fi
   shift
 done
+if [[ "$*" == *'/releases/assets/1' ]]; then
+  if [[ "$EXISTING_RELEASE" == draft-invalid-content || "$EXISTING_RELEASE" == missing-after-upload-invalid ]]; then
+    printf '%s' corrupted > "$output"
+  elif [[ "$EXISTING_RELEASE" == missing || "$EXISTING_RELEASE" == draft-missing || "$EXISTING_RELEASE" == draft-extra ]]; then
+    printf '%s' artifact > "$output"
+  else
+    printf '%s' remote-artifact > "$output"
+  fi
+  printf '%s' 200
+  exit
+fi
+if [[ "$*" == *'/releases/assets/2' ]]; then
+  if [[ "$EXISTING_RELEASE" == missing || "$EXISTING_RELEASE" == draft-missing || "$EXISTING_RELEASE" == draft-extra ]]; then
+    printf '%s' checksums > "$output"
+  else
+    printf '%s' remote-checksums > "$output"
+  fi
+  printf '%s' 200
+  exit
+fi
 case "$EXISTING_RELEASE" in
-  missing) printf '%s\n' '[]' > "$output"; printf '%s' 200 ;;
-  draft) printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"release-sha","draft":true,"assets":[{"name":"lanyard.tar.xz","digest":"sha256:different"},{"name":"sha256.sum","digest":"sha256:different"}]}]' > "$output"; printf '%s' 200 ;;
+  missing | missing-after-upload-incomplete | missing-after-upload-invalid)
+    release_lookups="$(grep -c 'api.github.com/repos/.*/releases?' "$COMMAND_LOG")"
+    if [[ "$release_lookups" == 1 ]]; then
+      printf '%s\n' '[]' > "$output"
+    elif [[ "$EXISTING_RELEASE" == missing-after-upload-incomplete ]]; then
+      printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"release-sha","draft":true,"assets":[{"id":1,"name":"lanyard.tar.xz","state":"open","size":15,"digest":"sha256:6709060af9720930b064fb42fce18ab3cc2f090757eb5d4ad97ae308ac1c9cbc"},{"id":2,"name":"sha256.sum","state":"uploaded","size":16,"digest":"sha256:c380dc7e56559cf43a7245adf5756c5d57ef7554fde6e0477ff01e26879598d3"}]}]' > "$output"
+    elif [[ "$EXISTING_RELEASE" == missing-after-upload-invalid ]]; then
+      printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"release-sha","draft":true,"assets":[{"id":1,"name":"lanyard.tar.xz","state":"uploaded","size":9,"digest":"sha256:3dbb3963d11aa418de8b61f846c3dbd5af43b40d252842adb823f90936fe6920"},{"id":2,"name":"sha256.sum","state":"uploaded","size":16,"digest":"sha256:c380dc7e56559cf43a7245adf5756c5d57ef7554fde6e0477ff01e26879598d3"}]}]' > "$output"
+    else
+      printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"release-sha","draft":true,"assets":[{"id":1,"name":"lanyard.tar.xz","state":"uploaded","size":8,"digest":"sha256:c7c5c1d70c5dec4416ab6158afd0b223ef40c29b1dc1f97ed9428b94d4cadb1c"},{"id":2,"name":"sha256.sum","state":"uploaded","size":9,"digest":"sha256:d3beb16ca27a9fc332b55f526e1c8da6db0b2f58d50c9d27d59e15e23a4e35a8"}]}]' > "$output"
+    fi
+    printf '%s' 200
+    ;;
+  draft) printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"release-sha","draft":true,"assets":[{"id":1,"name":"lanyard.tar.xz","state":"uploaded","size":15,"digest":"sha256:6709060af9720930b064fb42fce18ab3cc2f090757eb5d4ad97ae308ac1c9cbc"},{"id":2,"name":"sha256.sum","state":"uploaded","size":16,"digest":"sha256:c380dc7e56559cf43a7245adf5756c5d57ef7554fde6e0477ff01e26879598d3"}]}]' > "$output"; printf '%s' 200 ;;
+  draft-duplicate-asset) printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"release-sha","draft":true,"assets":[{"id":1,"name":"lanyard.tar.xz","state":"uploaded","size":15,"digest":"sha256:6709060af9720930b064fb42fce18ab3cc2f090757eb5d4ad97ae308ac1c9cbc"},{"id":2,"name":"lanyard.tar.xz","state":"uploaded","size":16,"digest":"sha256:c380dc7e56559cf43a7245adf5756c5d57ef7554fde6e0477ff01e26879598d3"}]}]' > "$output"; printf '%s' 200 ;;
+  draft-invalid-content) printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"release-sha","draft":true,"assets":[{"id":1,"name":"lanyard.tar.xz","state":"uploaded","size":15,"digest":"sha256:6709060af9720930b064fb42fce18ab3cc2f090757eb5d4ad97ae308ac1c9cbc"},{"id":2,"name":"sha256.sum","state":"uploaded","size":16,"digest":"sha256:c380dc7e56559cf43a7245adf5756c5d57ef7554fde6e0477ff01e26879598d3"}]}]' > "$output"; printf '%s' 200 ;;
+  draft-incomplete) printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"release-sha","draft":true,"assets":[{"id":1,"name":"lanyard.tar.xz","state":"open","size":15,"digest":"sha256:6709060af9720930b064fb42fce18ab3cc2f090757eb5d4ad97ae308ac1c9cbc"},{"id":2,"name":"sha256.sum","state":"uploaded","size":16,"digest":"sha256:c380dc7e56559cf43a7245adf5756c5d57ef7554fde6e0477ff01e26879598d3"}]}]' > "$output"; printf '%s' 200 ;;
   missing-local-artifacts) printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"release-sha","draft":true,"assets":[{"name":"lanyard.tar.xz"},{"name":"sha256.sum"}]}]' > "$output"; printf '%s' 200 ;;
-  draft-missing) printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"release-sha","draft":true,"assets":[{"name":"lanyard.tar.xz","digest":"sha256:any"}]}]' > "$output"; printf '%s' 200 ;;
+  draft-missing)
+    if [[ "$(grep -c 'api.github.com/repos/.*/releases?' "$COMMAND_LOG")" == 1 ]]; then
+      printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"release-sha","draft":true,"assets":[{"name":"lanyard.tar.xz","digest":"sha256:any"}]}]' > "$output"
+    else
+      printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"release-sha","draft":true,"assets":[{"id":1,"name":"lanyard.tar.xz","state":"uploaded","size":8,"digest":"sha256:c7c5c1d70c5dec4416ab6158afd0b223ef40c29b1dc1f97ed9428b94d4cadb1c"},{"id":2,"name":"sha256.sum","state":"uploaded","size":9,"digest":"sha256:d3beb16ca27a9fc332b55f526e1c8da6db0b2f58d50c9d27d59e15e23a4e35a8"}]}]' > "$output"
+    fi
+    printf '%s' 200
+    ;;
   draft-mismatch) printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"other-sha","draft":true,"assets":[{"name":"lanyard.tar.xz"},{"name":"sha256.sum"}]}]' > "$output"; printf '%s' 200 ;;
-  draft-extra) printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"release-sha","draft":true,"assets":[{"name":"stale.zip"}]}]' > "$output"; printf '%s' 200 ;;
+  draft-extra)
+    if [[ "$(grep -c 'api.github.com/repos/.*/releases?' "$COMMAND_LOG")" == 1 ]]; then
+      printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"release-sha","draft":true,"assets":[{"name":"stale.zip"}]}]' > "$output"
+    else
+      printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"release-sha","draft":true,"assets":[{"id":1,"name":"lanyard.tar.xz","state":"uploaded","size":8,"digest":"sha256:c7c5c1d70c5dec4416ab6158afd0b223ef40c29b1dc1f97ed9428b94d4cadb1c"},{"id":2,"name":"sha256.sum","state":"uploaded","size":9,"digest":"sha256:d3beb16ca27a9fc332b55f526e1c8da6db0b2f58d50c9d27d59e15e23a4e35a8"}]}]' > "$output"
+    fi
+    printf '%s' 200
+    ;;
   draft-null-digest) printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"release-sha","draft":true,"assets":[{"name":"lanyard.tar.xz","digest":null},{"name":"sha256.sum","digest":null}]}]' > "$output"; printf '%s' 200 ;;
   duplicate) printf '%s\n' '[{"tag_name":"v1.2.3","draft":true,"assets":[]},{"tag_name":"v1.2.3","draft":true,"assets":[]}]' > "$output"; printf '%s' 200 ;;
   duplicate-paginated)
@@ -1429,10 +1482,39 @@ fn draft_release_staging_is_retryable_but_never_accepts_a_public_release()
     assert!(missing_log.contains("release create v1.2.3 --draft"));
     assert!(missing_log.contains("release upload v1.2.3"));
 
+    let (invalid_upload, invalid_upload_log) = run_stage_release("missing-after-upload-invalid")?;
+    assert!(!invalid_upload.status.success());
+    assert!(invalid_upload_log.contains("release create v1.2.3 --draft"));
+    assert!(invalid_upload_log.contains("release upload v1.2.3"));
+
+    let (incomplete_upload, incomplete_upload_log) =
+        run_stage_release("missing-after-upload-incomplete")?;
+    assert!(!incomplete_upload.status.success());
+    assert!(incomplete_upload_log.contains("release create v1.2.3 --draft"));
+    assert!(incomplete_upload_log.contains("release upload v1.2.3"));
+
     let (draft, draft_log) = run_stage_release("draft")?;
     assert!(draft.status.success());
     assert!(!draft_log.contains("release create"));
     assert!(!draft_log.contains("release upload v1.2.3"));
+
+    let (duplicate_asset, duplicate_asset_log) = run_stage_release("draft-duplicate-asset")?;
+    assert!(!duplicate_asset.status.success());
+    assert!(!duplicate_asset_log.contains("gh api --method DELETE"));
+    assert!(!duplicate_asset_log.contains("release create"));
+    assert!(!duplicate_asset_log.contains("release upload"));
+
+    let (invalid_content, invalid_content_log) = run_stage_release("draft-invalid-content")?;
+    assert!(!invalid_content.status.success());
+    assert!(!invalid_content_log.contains("gh api --method DELETE"));
+    assert!(!invalid_content_log.contains("release create"));
+    assert!(!invalid_content_log.contains("release upload"));
+
+    let (incomplete, incomplete_log) = run_stage_release("draft-incomplete")?;
+    assert!(!incomplete.status.success());
+    assert!(!incomplete_log.contains("gh api --method DELETE"));
+    assert!(!incomplete_log.contains("release create"));
+    assert!(!incomplete_log.contains("release upload"));
 
     let (missing_local, missing_local_log) = run_stage_release("missing-local-artifacts")?;
     assert!(!missing_local.status.success());
@@ -1462,7 +1544,9 @@ fn draft_release_staging_is_retryable_but_never_accepts_a_public_release()
     assert!(extra_draft_log.contains("release upload v1.2.3"));
 
     let (null_digest, null_digest_log) = run_stage_release("draft-null-digest")?;
-    assert!(null_digest.status.success());
+    assert!(!null_digest.status.success());
+    assert!(!null_digest_log.contains("gh api --method DELETE"));
+    assert!(!null_digest_log.contains("release create"));
     assert!(!null_digest_log.contains("release upload v1.2.3"));
 
     let (duplicate, duplicate_log) = run_stage_release("duplicate")?;
