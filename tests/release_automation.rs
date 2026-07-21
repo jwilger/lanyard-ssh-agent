@@ -752,6 +752,33 @@ fn release_plz_only_prepares_release_metadata() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
+fn generated_release_history_keeps_document_boilerplate_at_the_top() -> Result<(), Box<dyn Error>> {
+    let changelog = read("CHANGELOG.md")?;
+    let next_release = changelog.replacen(
+        "## [Unreleased]",
+        "## [Unreleased]\n\n## [0.1.2] - 2026-07-22\n\n### Fixed\n\n- example",
+        1,
+    );
+
+    for release_history in [&changelog, &next_release] {
+        let (_, version_entries) = release_history
+            .split_once("\n## [0.1.")
+            .ok_or("CHANGELOG.md must allow generated version entries after Unreleased")?;
+        assert_eq!(release_history.matches("# Changelog").count(), 1);
+        assert_eq!(
+            release_history
+                .matches("All notable changes to this project will be documented in this file.")
+                .count(),
+            1
+        );
+        assert_eq!(release_history.matches("## [Unreleased]").count(), 1);
+        assert!(!version_entries.contains("# Changelog"));
+        assert!(!version_entries.contains("All notable changes to Lanyard are documented here."));
+    }
+    Ok(())
+}
+
+#[test]
 fn dist_builds_checksummed_linux_archives() -> Result<(), Box<dyn Error>> {
     let manifest = manifest()?;
     let dist = manifest
