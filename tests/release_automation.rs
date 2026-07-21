@@ -205,8 +205,10 @@ fn run_stage_release(existing: &str) -> Result<(Output, String), Box<dyn Error>>
     let artifacts = sandbox.path().join("artifacts");
     fs::create_dir_all(&bin)?;
     fs::create_dir_all(&artifacts)?;
-    fs::write(artifacts.join("lanyard.tar.xz"), "artifact")?;
-    fs::write(artifacts.join("sha256.sum"), "checksums")?;
+    if existing != "missing-local-artifacts" {
+        fs::write(artifacts.join("lanyard.tar.xz"), "artifact")?;
+        fs::write(artifacts.join("sha256.sum"), "checksums")?;
+    }
     let command_log = sandbox.path().join("commands.log");
     write_executable(
         &bin.join("gh"),
@@ -237,11 +239,12 @@ while (($#)); do
 done
 case "$EXISTING_RELEASE" in
   missing) printf '%s\n' '[]' > "$output"; printf '%s' 200 ;;
-  draft) printf '%s\n' '[{"tag_name":"v1.2.3","draft":true,"assets":[{"name":"lanyard.tar.xz","digest":"sha256:c7c5c1d70c5dec4416ab6158afd0b223ef40c29b1dc1f97ed9428b94d4cadb1c"},{"name":"sha256.sum","digest":"sha256:d3beb16ca27a9fc332b55f526e1c8da6db0b2f58d50c9d27d59e15e23a4e35a8"}]}]' > "$output"; printf '%s' 200 ;;
-  draft-missing) printf '%s\n' '[{"tag_name":"v1.2.3","draft":true,"assets":[{"name":"lanyard.tar.xz","digest":"sha256:c7c5c1d70c5dec4416ab6158afd0b223ef40c29b1dc1f97ed9428b94d4cadb1c"}]}]' > "$output"; printf '%s' 200 ;;
-  draft-mismatch) printf '%s\n' '[{"tag_name":"v1.2.3","draft":true,"assets":[{"name":"lanyard.tar.xz","digest":"sha256:wrong"}]}]' > "$output"; printf '%s' 200 ;;
-  draft-extra) printf '%s\n' '[{"tag_name":"v1.2.3","draft":true,"assets":[{"name":"stale.zip","digest":"sha256:wrong"}]}]' > "$output"; printf '%s' 200 ;;
-  draft-null-digest) printf '%s\n' '[{"tag_name":"v1.2.3","draft":true,"assets":[{"name":"lanyard.tar.xz","digest":null}]}]' > "$output"; printf '%s' 200 ;;
+  draft) printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"release-sha","draft":true,"assets":[{"name":"lanyard.tar.xz","digest":"sha256:different"},{"name":"sha256.sum","digest":"sha256:different"}]}]' > "$output"; printf '%s' 200 ;;
+  missing-local-artifacts) printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"release-sha","draft":true,"assets":[{"name":"lanyard.tar.xz"},{"name":"sha256.sum"}]}]' > "$output"; printf '%s' 200 ;;
+  draft-missing) printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"release-sha","draft":true,"assets":[{"name":"lanyard.tar.xz","digest":"sha256:any"}]}]' > "$output"; printf '%s' 200 ;;
+  draft-mismatch) printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"other-sha","draft":true,"assets":[{"name":"lanyard.tar.xz"},{"name":"sha256.sum"}]}]' > "$output"; printf '%s' 200 ;;
+  draft-extra) printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"release-sha","draft":true,"assets":[{"name":"stale.zip"}]}]' > "$output"; printf '%s' 200 ;;
+  draft-null-digest) printf '%s\n' '[{"id":123,"tag_name":"v1.2.3","target_commitish":"release-sha","draft":true,"assets":[{"name":"lanyard.tar.xz","digest":null},{"name":"sha256.sum","digest":null}]}]' > "$output"; printf '%s' 200 ;;
   duplicate) printf '%s\n' '[{"tag_name":"v1.2.3","draft":true,"assets":[]},{"tag_name":"v1.2.3","draft":true,"assets":[]}]' > "$output"; printf '%s' 200 ;;
   duplicate-paginated)
     if [[ "$*" == *'&page=1'* ]]; then
@@ -1427,25 +1430,35 @@ fn draft_release_staging_is_retryable_but_never_accepts_a_public_release()
     assert!(!draft_log.contains("release create"));
     assert!(!draft_log.contains("release upload v1.2.3"));
 
+    let (missing_local, missing_local_log) = run_stage_release("missing-local-artifacts")?;
+    assert!(!missing_local.status.success());
+    assert!(!missing_local_log.contains("gh api --method DELETE"));
+    assert!(!missing_local_log.contains("release create"));
+    assert!(!missing_local_log.contains("release upload"));
+
     let (partial_draft, partial_draft_log) = run_stage_release("draft-missing")?;
     assert!(partial_draft.status.success());
-    let upload = partial_draft_log
-        .lines()
-        .find(|line| line.starts_with("gh release upload v1.2.3"))
-        .ok_or("partial draft must upload its missing asset")?;
-    assert!(upload.contains("sha256.sum"));
-    assert!(!upload.contains("lanyard.tar.xz"));
+    assert!(
+        partial_draft_log
+            .contains("gh api --method DELETE repos/jwilger/lanyard-ssh-agent/releases/123")
+    );
+    assert!(partial_draft_log.contains("release create v1.2.3 --draft"));
+    assert!(partial_draft_log.contains("release upload v1.2.3"));
 
     let (mismatched_draft, mismatched_draft_log) = run_stage_release("draft-mismatch")?;
     assert!(!mismatched_draft.status.success());
     assert!(!mismatched_draft_log.contains("release upload v1.2.3"));
 
     let (extra_draft, extra_draft_log) = run_stage_release("draft-extra")?;
-    assert!(!extra_draft.status.success());
-    assert!(!extra_draft_log.contains("release upload v1.2.3"));
+    assert!(extra_draft.status.success());
+    assert!(
+        extra_draft_log
+            .contains("gh api --method DELETE repos/jwilger/lanyard-ssh-agent/releases/123")
+    );
+    assert!(extra_draft_log.contains("release upload v1.2.3"));
 
     let (null_digest, null_digest_log) = run_stage_release("draft-null-digest")?;
-    assert!(!null_digest.status.success());
+    assert!(null_digest.status.success());
     assert!(!null_digest_log.contains("release upload v1.2.3"));
 
     let (duplicate, duplicate_log) = run_stage_release("duplicate")?;
