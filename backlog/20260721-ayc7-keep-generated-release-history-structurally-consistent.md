@@ -13,6 +13,8 @@ pr_mr_status:
 
 ## Acceptance criteria
 
+- [ ] CHANGELOG.md contains one top-level title and one introductory section.
+
 ## Subtasks
 
 ## Notes / Log
