@@ -25,7 +25,7 @@ Successful changes on main currently do not reliably produce a release. The conf
 - [x] A verification run caused by a release-preparation commit is idempotent and cannot publish a duplicate release.
 - [x] Automated tests cover release triggering, verification gating, natural version calculation, and removal of the unsupported action-wrapper command.
 - [x] Operator and public documentation describe the verified-main-to-release flow and its recovery behavior.
-- [ ] The next natural semantic version is observed end to end on crates.io and as a public GitHub release with matching signed provenance.
+- [x] The next natural semantic version is observed end to end on crates.io and as a public GitHub release with matching signed provenance.
 
 ## Subtasks
 
