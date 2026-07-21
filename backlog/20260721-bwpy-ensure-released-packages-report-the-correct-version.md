@@ -2,7 +2,7 @@
 title: Ensure released packages report the correct version
 blocked_by: []
 blocks: []
-tags: []
+tags: [github-issue, release, nix]
 pr_mr_url: 
 pr_mr_status: 
 ---
