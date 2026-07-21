@@ -3,19 +3,51 @@ set -euo pipefail
 
 artifact_dir="${ARTIFACT_DIR:-artifacts}"
 release_state_path="$(mktemp)"
-trap 'rm -f "$release_state_path"' EXIT
+selected_release_path="${release_state_path}.selected"
+release_page_path="${release_state_path}.page"
+trap 'rm -f "$release_state_path" "$selected_release_path" "$release_page_path"' EXIT
 
-release_status="$(curl --silent --show-error --output "$release_state_path" \
-  --write-out '%{http_code}' --retry 3 --retry-delay 2 --retry-all-errors \
-  --connect-timeout 10 --max-time 45 \
-  --header "Authorization: Bearer ${GH_TOKEN:?}" \
-  --header 'Accept: application/vnd.github+json' \
-  --header 'X-GitHub-Api-Version: 2022-11-28' \
-  --header 'User-Agent: lanyard-ssh-agent-release-staging' \
-  "https://api.github.com/repos/${GITHUB_REPOSITORY:?}/releases/tags/${RELEASE_TAG}")"
+printf '%s\n' '[]' > "$release_state_path"
+page=1
+while :; do
+  release_status="$(curl --silent --show-error --output "$release_page_path" \
+    --write-out '%{http_code}' --retry 3 --retry-delay 2 --retry-all-errors \
+    --connect-timeout 10 --max-time 45 \
+    --header "Authorization: Bearer ${GH_TOKEN:?}" \
+    --header 'Accept: application/vnd.github+json' \
+    --header 'X-GitHub-Api-Version: 2022-11-28' \
+    --header 'User-Agent: lanyard-ssh-agent-release-staging' \
+    "https://api.github.com/repos/${GITHUB_REPOSITORY:?}/releases?per_page=100&page=${page}")"
+  if [[ "$release_status" != 200 ]]; then
+    echo "GitHub Releases lookup returned HTTP ${release_status}" >&2
+    exit 1
+  fi
+  release_count="$(jq 'if type == "array" then length else error("expected an array") end' "$release_page_path")"
+  jq --slurp '.[0] + .[1]' "$release_state_path" "$release_page_path" > "$selected_release_path"
+  mv "$selected_release_path" "$release_state_path"
+  if ((release_count < 100)); then
+    break
+  fi
+  ((page += 1))
+done
 
-case "$release_status" in
-  200)
+matching_releases="$(
+  jq --arg tag "$RELEASE_TAG" '[.[] | select(.tag_name == $tag)] | length' \
+    "$release_state_path"
+)"
+case "$matching_releases" in
+  0)
+    release_flags=(--draft --verify-tag --generate-notes --title "$RELEASE_TAG" --target "$RELEASE_COMMIT")
+    if [[ "$RELEASE_TAG" == *-* ]]; then
+      release_flags+=(--prerelease)
+    fi
+    gh release create "$RELEASE_TAG" "${release_flags[@]}"
+    upload_paths=("$artifact_dir"/*)
+    ;;
+  1)
+    jq --arg tag "$RELEASE_TAG" '.[] | select(.tag_name == $tag)' \
+      "$release_state_path" > "$selected_release_path"
+    mv "$selected_release_path" "$release_state_path"
     existing_draft="$(
       jq --raw-output 'if (.draft | type) == "boolean" then .draft else empty end' \
         "$release_state_path"
@@ -60,16 +92,8 @@ case "$release_status" in
       fi
     done
     ;;
-  404)
-    release_flags=(--draft --verify-tag --generate-notes --title "$RELEASE_TAG" --target "$RELEASE_COMMIT")
-    if [[ "$RELEASE_TAG" == *-* ]]; then
-      release_flags+=(--prerelease)
-    fi
-    gh release create "$RELEASE_TAG" "${release_flags[@]}"
-    upload_paths=("$artifact_dir"/*)
-    ;;
   *)
-    echo "GitHub Release lookup returned HTTP ${release_status}" >&2
+    echo "GitHub has ${matching_releases} releases tagged ${RELEASE_TAG}; refusing an ambiguous recovery" >&2
     exit 1
     ;;
 esac

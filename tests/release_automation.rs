@@ -236,13 +236,22 @@ while (($#)); do
   shift
 done
 case "$EXISTING_RELEASE" in
-  missing) printf '%s' 404 ;;
-  draft) printf '%s\n' '{"draft":true,"assets":[{"name":"lanyard.tar.xz","digest":"sha256:c7c5c1d70c5dec4416ab6158afd0b223ef40c29b1dc1f97ed9428b94d4cadb1c"},{"name":"sha256.sum","digest":"sha256:d3beb16ca27a9fc332b55f526e1c8da6db0b2f58d50c9d27d59e15e23a4e35a8"}]}' > "$output"; printf '%s' 200 ;;
-  draft-missing) printf '%s\n' '{"draft":true,"assets":[{"name":"lanyard.tar.xz","digest":"sha256:c7c5c1d70c5dec4416ab6158afd0b223ef40c29b1dc1f97ed9428b94d4cadb1c"}]}' > "$output"; printf '%s' 200 ;;
-  draft-mismatch) printf '%s\n' '{"draft":true,"assets":[{"name":"lanyard.tar.xz","digest":"sha256:wrong"}]}' > "$output"; printf '%s' 200 ;;
-  draft-extra) printf '%s\n' '{"draft":true,"assets":[{"name":"stale.zip","digest":"sha256:wrong"}]}' > "$output"; printf '%s' 200 ;;
-  draft-null-digest) printf '%s\n' '{"draft":true,"assets":[{"name":"lanyard.tar.xz","digest":null}]}' > "$output"; printf '%s' 200 ;;
-  public) printf '%s\n' '{"draft":false}' > "$output"; printf '%s' 200 ;;
+  missing) printf '%s\n' '[]' > "$output"; printf '%s' 200 ;;
+  draft) printf '%s\n' '[{"tag_name":"v1.2.3","draft":true,"assets":[{"name":"lanyard.tar.xz","digest":"sha256:c7c5c1d70c5dec4416ab6158afd0b223ef40c29b1dc1f97ed9428b94d4cadb1c"},{"name":"sha256.sum","digest":"sha256:d3beb16ca27a9fc332b55f526e1c8da6db0b2f58d50c9d27d59e15e23a4e35a8"}]}]' > "$output"; printf '%s' 200 ;;
+  draft-missing) printf '%s\n' '[{"tag_name":"v1.2.3","draft":true,"assets":[{"name":"lanyard.tar.xz","digest":"sha256:c7c5c1d70c5dec4416ab6158afd0b223ef40c29b1dc1f97ed9428b94d4cadb1c"}]}]' > "$output"; printf '%s' 200 ;;
+  draft-mismatch) printf '%s\n' '[{"tag_name":"v1.2.3","draft":true,"assets":[{"name":"lanyard.tar.xz","digest":"sha256:wrong"}]}]' > "$output"; printf '%s' 200 ;;
+  draft-extra) printf '%s\n' '[{"tag_name":"v1.2.3","draft":true,"assets":[{"name":"stale.zip","digest":"sha256:wrong"}]}]' > "$output"; printf '%s' 200 ;;
+  draft-null-digest) printf '%s\n' '[{"tag_name":"v1.2.3","draft":true,"assets":[{"name":"lanyard.tar.xz","digest":null}]}]' > "$output"; printf '%s' 200 ;;
+  duplicate) printf '%s\n' '[{"tag_name":"v1.2.3","draft":true,"assets":[]},{"tag_name":"v1.2.3","draft":true,"assets":[]}]' > "$output"; printf '%s' 200 ;;
+  duplicate-paginated)
+    if [[ "$*" == *'&page=1'* ]]; then
+      jq --null-input '[{"tag_name":"v1.2.3","draft":true,"assets":[]}] + [range(99) | {tag_name:("v0.0." + tostring),draft:false,assets:[]}]' > "$output"
+    else
+      printf '%s\n' '[{"tag_name":"v1.2.3","draft":true,"assets":[]}]' > "$output"
+    fi
+    printf '%s' 200
+    ;;
+  public) printf '%s\n' '[{"tag_name":"v1.2.3","draft":false,"assets":[]}]' > "$output"; printf '%s' 200 ;;
   error) printf '%s' 503 ;;
 esac
 "#,
@@ -1438,6 +1447,14 @@ fn draft_release_staging_is_retryable_but_never_accepts_a_public_release()
     let (null_digest, null_digest_log) = run_stage_release("draft-null-digest")?;
     assert!(!null_digest.status.success());
     assert!(!null_digest_log.contains("release upload v1.2.3"));
+
+    let (duplicate, duplicate_log) = run_stage_release("duplicate")?;
+    assert!(!duplicate.status.success());
+    assert!(!duplicate_log.contains("release upload v1.2.3"));
+
+    let (paginated_duplicate, paginated_duplicate_log) = run_stage_release("duplicate-paginated")?;
+    assert!(!paginated_duplicate.status.success());
+    assert!(!paginated_duplicate_log.contains("release upload v1.2.3"));
 
     let (public, public_log) = run_stage_release("public")?;
     assert!(!public.status.success());
