@@ -32,3 +32,4 @@ Successful changes on main currently do not reliably produce a release. The conf
 ## Notes / Log
 
 - 2026-07-20: Implementation notes: use release-plz 0.3.159 for natural version calculation. Keep the trunk-based state machine idempotent, preserve signed commits and tags, publish checksummed x86_64 and aarch64 Linux archives, stage GitHub as a draft, publish crates.io, and make GitHub public last.
+- 2026-07-21: Release proof: CI run 29802526669 succeeded for 09113d16502864942da79a4dcefcd7653bf23e7a; crates.io 0.1.1 is visible; GitHub v0.1.1 is public with seven expected assets. Final failure record: fee9a9bf63dcd4737ef2a32583cceab6e7ab0b95, run 29802401356, check/Check failed because Clippy measured recovery test cognitive complexity 31/25. Diagnosis: caused by expanded cohesive state matrix. Next action was tested causal repair 09113d1 with rationale body. Replacement terminal status: success; queued/pending/running: none.
