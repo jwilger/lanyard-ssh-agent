@@ -13,6 +13,8 @@ pr_mr_status:
 
 ## Acceptance criteria
 
+- [ ] Recovery does not publish a staged release when any expected remote file is demonstrably incomplete or differs from the authoritative staged artifact.
+
 ## Subtasks
 
 ## Notes / Log
