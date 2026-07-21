@@ -18,7 +18,7 @@ Published packages should identify themselves with the same version as the relea
 
 ## Acceptance criteria
 
-- [ ] The Nix package metadata for a tagged release reports the same version as that tag and the packaged executable.
+- [x] The Nix package metadata for a tagged release reports the same version as that tag and the packaged executable.
 - [ ] An automated check fails when release package metadata retains a previous version.
 - [ ] The release process documents or automates every version-bearing file that must be updated before publication.
 
