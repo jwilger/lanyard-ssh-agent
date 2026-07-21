@@ -265,10 +265,16 @@ jobs:
       contents: write
     runs-on: "ubuntu-22.04"
     steps:
-      - name: Checkout release scripts
+      - name: Checkout release source
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ needs.plan.outputs.release-commit }}
+          persist-credentials: false
+      - name: Checkout verified release tooling
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.sha }}
+          path: release-tools
           persist-credentials: false
       - name: Download built artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
@@ -284,7 +290,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ needs.plan.outputs.tag }}
           RELEASE_COMMIT: ${{ needs.plan.outputs.release-commit }}
-        run: scripts/stage-release.sh
+        run: release-tools/scripts/stage-release.sh
 
   publish-crate:
     needs:

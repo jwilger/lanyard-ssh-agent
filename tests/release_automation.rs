@@ -206,6 +206,7 @@ fn run_stage_release(existing: &str) -> Result<(Output, String), Box<dyn Error>>
     fs::create_dir_all(&bin)?;
     fs::create_dir_all(&artifacts)?;
     fs::write(artifacts.join("lanyard.tar.xz"), "artifact")?;
+    fs::write(artifacts.join("sha256.sum"), "checksums")?;
     let command_log = sandbox.path().join("commands.log");
     write_executable(
         &bin.join("gh"),
@@ -215,7 +216,7 @@ printf 'gh %s\n' "$*" >> "$COMMAND_LOG"
 if [[ "$*" == "release view "* ]]; then
   case "$EXISTING_RELEASE" in
     missing | error) exit 1 ;;
-    draft) printf '%s\n' true ;;
+    draft | draft-missing | draft-mismatch) printf '%s\n' true ;;
     public) printf '%s\n' false ;;
   esac
 fi
@@ -236,7 +237,11 @@ while (($#)); do
 done
 case "$EXISTING_RELEASE" in
   missing) printf '%s' 404 ;;
-  draft) printf '%s\n' '{"draft":true}' > "$output"; printf '%s' 200 ;;
+  draft) printf '%s\n' '{"draft":true,"assets":[{"name":"lanyard.tar.xz","digest":"sha256:c7c5c1d70c5dec4416ab6158afd0b223ef40c29b1dc1f97ed9428b94d4cadb1c"},{"name":"sha256.sum","digest":"sha256:d3beb16ca27a9fc332b55f526e1c8da6db0b2f58d50c9d27d59e15e23a4e35a8"}]}' > "$output"; printf '%s' 200 ;;
+  draft-missing) printf '%s\n' '{"draft":true,"assets":[{"name":"lanyard.tar.xz","digest":"sha256:c7c5c1d70c5dec4416ab6158afd0b223ef40c29b1dc1f97ed9428b94d4cadb1c"}]}' > "$output"; printf '%s' 200 ;;
+  draft-mismatch) printf '%s\n' '{"draft":true,"assets":[{"name":"lanyard.tar.xz","digest":"sha256:wrong"}]}' > "$output"; printf '%s' 200 ;;
+  draft-extra) printf '%s\n' '{"draft":true,"assets":[{"name":"stale.zip","digest":"sha256:wrong"}]}' > "$output"; printf '%s' 200 ;;
+  draft-null-digest) printf '%s\n' '{"draft":true,"assets":[{"name":"lanyard.tar.xz","digest":null}]}' > "$output"; printf '%s' 200 ;;
   public) printf '%s\n' '{"draft":false}' > "$output"; printf '%s' 200 ;;
   error) printf '%s' 503 ;;
 esac
@@ -1291,7 +1296,6 @@ fn release_jobs_checkout_the_authoritative_tag_commit() -> Result<(), Box<dyn Er
             "build-global-artifacts",
             "${{ needs.plan.outputs.release-commit }}",
         ),
-        ("host", "${{ needs.plan.outputs.release-commit }}"),
         ("announce", "${{ needs.plan.outputs.release-commit }}"),
     ];
     for (job_name, expected_ref) in expected {
@@ -1361,14 +1365,38 @@ fn verified_artifacts_are_staged_in_a_draft_release() -> Result<(), Box<dyn Erro
         .get("jobs")
         .and_then(|jobs| jobs.get("host"))
         .ok_or("release workflow must define an artifact host job")?;
+    let host_steps = host
+        .get("steps")
+        .and_then(Yaml::as_sequence)
+        .ok_or("artifact host must define steps")?;
+    let tooling = host_steps
+        .iter()
+        .find(|step| {
+            step.get("name").and_then(Yaml::as_str) == Some("Checkout verified release tooling")
+        })
+        .ok_or("artifact host must checkout verified release tooling")?;
+    assert_eq!(
+        tooling
+            .get("with")
+            .and_then(|inputs| inputs.get("ref"))
+            .and_then(Yaml::as_str),
+        Some("${{ github.sha }}")
+    );
+    assert_eq!(
+        tooling
+            .get("with")
+            .and_then(|inputs| inputs.get("path"))
+            .and_then(Yaml::as_str),
+        Some("release-tools")
+    );
     let mut scripts = Vec::new();
     values_for_key(host, "run", &mut scripts);
-    assert!(scripts.contains(&"scripts/stage-release.sh"));
+    assert!(scripts.contains(&"release-tools/scripts/stage-release.sh"));
     let host_script = read("scripts/stage-release.sh")?;
 
     assert!(host_script.contains("--draft"));
     assert!(host_script.contains("gh release upload"));
-    assert!(host_script.contains("--clobber"));
+    assert!(!host_script.contains("--clobber"));
     assert!(!host_script.contains("dist host"));
     Ok(())
 }
@@ -1388,7 +1416,28 @@ fn draft_release_staging_is_retryable_but_never_accepts_a_public_release()
     let (draft, draft_log) = run_stage_release("draft")?;
     assert!(draft.status.success());
     assert!(!draft_log.contains("release create"));
-    assert!(draft_log.contains("release upload v1.2.3"));
+    assert!(!draft_log.contains("release upload v1.2.3"));
+
+    let (partial_draft, partial_draft_log) = run_stage_release("draft-missing")?;
+    assert!(partial_draft.status.success());
+    let upload = partial_draft_log
+        .lines()
+        .find(|line| line.starts_with("gh release upload v1.2.3"))
+        .ok_or("partial draft must upload its missing asset")?;
+    assert!(upload.contains("sha256.sum"));
+    assert!(!upload.contains("lanyard.tar.xz"));
+
+    let (mismatched_draft, mismatched_draft_log) = run_stage_release("draft-mismatch")?;
+    assert!(!mismatched_draft.status.success());
+    assert!(!mismatched_draft_log.contains("release upload v1.2.3"));
+
+    let (extra_draft, extra_draft_log) = run_stage_release("draft-extra")?;
+    assert!(!extra_draft.status.success());
+    assert!(!extra_draft_log.contains("release upload v1.2.3"));
+
+    let (null_digest, null_digest_log) = run_stage_release("draft-null-digest")?;
+    assert!(!null_digest.status.success());
+    assert!(!null_digest_log.contains("release upload v1.2.3"));
 
     let (public, public_log) = run_stage_release("public")?;
     assert!(!public.status.success());

@@ -28,6 +28,37 @@ case "$release_status" in
       echo "Existing GitHub Release ${RELEASE_TAG} is already public" >&2
       exit 1
     fi
+    artifact_paths=("$artifact_dir"/*)
+    declare -A local_artifacts=()
+    for artifact in "${artifact_paths[@]}"; do
+      local_artifacts["$(basename "$artifact")"]="$artifact"
+    done
+    declare -A remote_digests=()
+    while IFS=$'\t' read -r remote_name remote_digest; do
+      if [[ -z "${local_artifacts[$remote_name]+present}" ]]; then
+        echo "GitHub Release ${RELEASE_TAG} has unexpected asset ${remote_name}" >&2
+        exit 1
+      fi
+      if [[ -z "$remote_digest" ]]; then
+        echo "GitHub Release ${RELEASE_TAG} asset ${remote_name} has no digest" >&2
+        exit 1
+      fi
+      remote_digests["$remote_name"]="$remote_digest"
+    done < <(jq --raw-output '.assets[]? | [.name, (.digest // "")] | @tsv' "$release_state_path")
+
+    upload_paths=()
+    for artifact in "$artifact_dir"/*; do
+      artifact_name="$(basename "$artifact")"
+      if [[ -z "${remote_digests[$artifact_name]+present}" ]]; then
+        upload_paths+=("$artifact")
+        continue
+      fi
+      local_digest="sha256:$(sha256sum "$artifact" | cut -d ' ' -f 1)"
+      if [[ "${remote_digests[$artifact_name]}" != "$local_digest" ]]; then
+        echo "GitHub Release ${RELEASE_TAG} asset ${artifact_name} has digest ${remote_digests[$artifact_name]}, expected ${local_digest}" >&2
+        exit 1
+      fi
+    done
     ;;
   404)
     release_flags=(--draft --verify-tag --generate-notes --title "$RELEASE_TAG" --target "$RELEASE_COMMIT")
@@ -35,10 +66,15 @@ case "$release_status" in
       release_flags+=(--prerelease)
     fi
     gh release create "$RELEASE_TAG" "${release_flags[@]}"
+    upload_paths=("$artifact_dir"/*)
     ;;
   *)
     echo "GitHub Release lookup returned HTTP ${release_status}" >&2
     exit 1
     ;;
 esac
-gh release upload "$RELEASE_TAG" "$artifact_dir"/* --clobber
+if ((${#upload_paths[@]})); then
+  gh release upload "$RELEASE_TAG" "${upload_paths[@]}"
+else
+  echo "GitHub Release ${RELEASE_TAG} already has all staged artifacts"
+fi
